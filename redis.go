@@ -1,6 +1,5 @@
 package tiga
 
-
 import (
 	"context"
 	"fmt"
@@ -89,7 +88,12 @@ func (r *RedisDao) GetInt(key string) (int, error) {
 
 	return val, err
 }
+func (r *RedisDao) IncrBy(key string, value int64) (int64, error) {
+	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
+	val, err := r.client.IncrBy(context.Background(), key, value).Result()
 
+	return val, err
+}
 func (r *RedisDao) SetNX(key string, val interface{}, expiration time.Duration) (bool, error) {
 	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
 	ok, err := r.client.SetNX(context.Background(), key, val, expiration).Result()

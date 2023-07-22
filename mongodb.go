@@ -3,8 +3,10 @@ package tiga
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -12,13 +14,14 @@ import (
 
 type MongodbDao struct {
 	db     *mongo.Database
-	config Configuration
+	config *Configuration
 }
-type MongoStruct interface{
-	Save()error
-	Read()interface{}
+type MongoStruct interface {
+	Save() error
+	Read() interface{}
 }
-func NewMongodbDao(config Configuration) *MongodbDao {
+
+func NewMongodbDao(config *Configuration) *MongodbDao {
 	env := config.GetEnv()
 	username := config.GetConfigByEnv(env, "mongodb.username")
 	password := config.GetConfigByEnv(env, "mongodb.password")
@@ -47,9 +50,18 @@ func NewMongodbDao(config Configuration) *MongodbDao {
 	}
 	// 返回 client
 	return &MongodbDao{
-		db: client.Database(db),
+		db:     client.Database(db),
 		config: config,
 	}
 
 }
 
+func (m MongodbDao) Upsert(collection string, filter interface{}, update primitive.M) error {
+	c := m.db.Collection(collection)
+	opts := options.Update().SetUpsert(true)
+	_, err := c.UpdateOne(context.TODO(), filter, update, opts)
+	if err != nil && !strings.Contains(err.Error(), "no documents in result") {
+		return err
+	}
+	return nil
+}

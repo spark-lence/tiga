@@ -13,11 +13,11 @@ import (
 
 type KafkaDao struct {
 	client     *kafka.Client
-	config     Configuration
+	config     *Configuration
 	partitions map[string][]int
 }
 
-func NewKafkaDao(config Configuration) *KafkaDao {
+func NewKafkaDao(config *Configuration) *KafkaDao {
 	env := config.GetEnv()
 	addr := config.GetConfigByEnv(env, "kafka.addr").(string)
 	client := &kafka.Client{
@@ -32,10 +32,9 @@ func NewKafkaDao(config Configuration) *KafkaDao {
 
 }
 func (k *KafkaDao) RecvMessage(topic string, groupID string, messages chan<- kafka.Message) error {
-	env := k.config.GetEnv()
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{k.client.Addr.String()},
-		Topic:   fmt.Sprintf("%s-%s", topic, env),
+		Topic:   topic,
 		GroupID: groupID,
 	})
 	for {
@@ -69,8 +68,6 @@ func (k *KafkaDao) readPartitions(topic string) error {
 }
 func (k *KafkaDao) SendMessage(topic string, record string) (*kafka.ProduceResponse, error) {
 	now := time.Now()
-	env := k.config.GetEnv()
-	topic = fmt.Sprintf("%s-%s", topic, env)
 	partitions := k.partitions[topic]
 	if partitions == nil {
 		err := k.readPartitions(topic)

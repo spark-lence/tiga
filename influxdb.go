@@ -13,10 +13,10 @@ type InfluxdbDao struct {
 	client influxdb2.Client
 	bucket string
 	org    string
-	config Configuration
+	config *Configuration
 }
 
-func NewInfluxdbDao(config Configuration) *InfluxdbDao {
+func NewInfluxdbDao(config *Configuration) *InfluxdbDao {
 	env := config.GetEnv()
 	host := config.GetConfigByEnv(env, "influxdb.host")
 	port := config.GetConfigByEnv(env, "influxdb.port")

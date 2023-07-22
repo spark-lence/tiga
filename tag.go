@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-func TagsTransformer(object interface{}, srcTagName string, targetTagName string) {
+func TagsTransformer(object interface{}, srcTagName string, targetTagName string) interface{} {
 	// Get the reflect value of the struct
 	v := reflect.ValueOf(object).Elem()
 
@@ -27,4 +27,5 @@ func TagsTransformer(object interface{}, srcTagName string, targetTagName string
 			fieldType.Tag = newTags
 		}
 	}
+	return object
 }

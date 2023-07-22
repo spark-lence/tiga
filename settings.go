@@ -3,9 +3,6 @@ package tiga
 import (
 	"fmt"
 	"os"
-	"path"
-	"path/filepath"
-	"runtime"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -19,13 +16,13 @@ type Settings interface {
 type Configuration struct {
 	// Log *Logger `ymal:"log"`
 	*viper.Viper
-	Env string
+	env string
 }
 
 var onceConfig sync.Once
 var config *Configuration = nil
 
-func NewConfig(env string) *Configuration {
+func newConfig(env string) *Configuration {
 	onceConfig.Do(func() {
 		config = &Configuration{
 			viper.New(),
@@ -42,7 +39,7 @@ func (c Configuration) GetValue(key string) (interface{}, error) {
 func (c Configuration) GetEnv() string {
 	env, ok := os.LookupEnv("RUN_MODE")
 	if !ok {
-		env = c.Env
+		env = c.env
 	}
 	return env
 }
@@ -60,20 +57,10 @@ func (c Configuration) load(dir string) bool {
 	err := c.Unmarshal(c)
 	return err == nil
 }
-func InitSettings(env string) Configuration {
-	config := NewConfig(env)
-	// wd, _ := os.Getwd()
-	var abPath string
-
-	_, filename, _, ok := runtime.Caller(0)
-	if ok {
-		parentPath := filepath.Dir(filename)
-
-		abPath = path.Dir(parentPath)
-
-	}
+func InitSettings(env string, settingDir string) *Configuration {
+	config := newConfig(env)
 	// Config.load(wd)
-	config.load(abPath)
-	return *config
+	config.load(settingDir)
+	return config
 
 }
