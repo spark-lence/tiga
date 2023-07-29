@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -64,4 +65,31 @@ func (m MongodbDao) Upsert(collection string, filter interface{}, update primiti
 		return err
 	}
 	return nil
+}
+func (m MongodbDao) PagingQuery(collection string, filter interface{}, limit int64, index int64, project bson.M) ([]map[string]interface{}, error) {
+	var data []map[string]interface{}
+	findoptions := &options.FindOptions{}
+	if limit >= 0 {
+		findoptions.SetLimit(limit)
+		findoptions.SetSkip(limit * index)
+	}
+	if project != nil {
+		findoptions.SetProjection(project)
+	}
+	c := m.db.Collection(collection)
+	r, err := c.Find(context.TODO(), filter, findoptions)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close(context.TODO())
+	for r.Next(context.TODO()) {
+		var item map[string]interface{}
+		err = r.Decode(&item)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, item)
+	}
+	// r.Decode(&data)
+	return data, nil
 }

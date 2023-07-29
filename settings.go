@@ -3,8 +3,8 @@ package tiga
 import (
 	"fmt"
 	"os"
-	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
@@ -19,16 +19,20 @@ type Configuration struct {
 	env string
 }
 
-var onceConfig sync.Once
-var config *Configuration = nil
+// var onceConfig sync.Once
+// var config *Configuration = nil
 
 func newConfig(env string) *Configuration {
-	onceConfig.Do(func() {
-		config = &Configuration{
-			viper.New(),
-			env,
-		}
-	})
+	// onceConfig.Do(func() {
+	// 	config = &Configuration{
+	// 		viper.New(),
+	// 		env,
+	// 	}
+	// })
+	config := &Configuration{
+		viper.New(),
+		env,
+	}
 	return config
 
 }
@@ -61,6 +65,11 @@ func InitSettings(env string, settingDir string) *Configuration {
 	config := newConfig(env)
 	// Config.load(wd)
 	config.load(settingDir)
+	config.WatchConfig()
+	config.OnConfigChange(func(e fsnotify.Event) {
+		fmt.Println("Config file changed:", e.Name)
+		config.load(settingDir)
+	})
 	return config
 
 }

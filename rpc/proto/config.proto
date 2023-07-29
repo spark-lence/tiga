@@ -1,0 +1,20 @@
+syntax = "proto3";
+package pb;
+option go_package = "github.com/spark-lence/common/pb";
+option java_multiple_files = true;
+option java_package = "com.sparklence.pb";
+option java_outer_classname = "Config";
+
+message ConfigRequest{
+    string key=1;
+    string env=2;
+}
+
+message ConfigResponse{
+    bytes value=1;
+}
+
+service Config {
+    // Sends a greeting
+    rpc GetConfig (ConfigRequest) returns (ConfigResponse) {}
+  }
