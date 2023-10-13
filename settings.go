@@ -50,6 +50,9 @@ func (c Configuration) GetEnv() string {
 func (c Configuration) GetConfigByEnv(env string, key string) interface{} {
 	return c.Get(fmt.Sprintf("%s.%s", env, key))
 }
+func (c Configuration) SetConfig(key string, val string, env string) {
+	c.Set(fmt.Sprintf("%s.%s", env, key), val)
+}
 func (c Configuration) load(dir string) bool {
 	c.AddConfigPath(dir)
 	c.SetConfigName("settings")

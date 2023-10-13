@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type ConfigClient interface {
 	// Sends a greeting
 	GetConfig(ctx context.Context, in *ConfigRequest, opts ...grpc.CallOption) (*ConfigResponse, error)
+	SetConfig(ctx context.Context, in *ConfigRequest, opts ...grpc.CallOption) (*ConfigResponse, error)
 }
 
 type configClient struct {
@@ -43,12 +44,22 @@ func (c *configClient) GetConfig(ctx context.Context, in *ConfigRequest, opts ..
 	return out, nil
 }
 
+func (c *configClient) SetConfig(ctx context.Context, in *ConfigRequest, opts ...grpc.CallOption) (*ConfigResponse, error) {
+	out := new(ConfigResponse)
+	err := c.cc.Invoke(ctx, "/pb.Config/SetConfig", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConfigServer is the server API for Config service.
 // All implementations must embed UnimplementedConfigServer
 // for forward compatibility
 type ConfigServer interface {
 	// Sends a greeting
 	GetConfig(context.Context, *ConfigRequest) (*ConfigResponse, error)
+	SetConfig(context.Context, *ConfigRequest) (*ConfigResponse, error)
 	mustEmbedUnimplementedConfigServer()
 }
 
@@ -58,6 +69,9 @@ type UnimplementedConfigServer struct {
 
 func (UnimplementedConfigServer) GetConfig(context.Context, *ConfigRequest) (*ConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
+}
+func (UnimplementedConfigServer) SetConfig(context.Context, *ConfigRequest) (*ConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetConfig not implemented")
 }
 func (UnimplementedConfigServer) mustEmbedUnimplementedConfigServer() {}
 
@@ -90,6 +104,24 @@ func _Config_GetConfig_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Config_SetConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServer).SetConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.Config/SetConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServer).SetConfig(ctx, req.(*ConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Config_ServiceDesc is the grpc.ServiceDesc for Config service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -100,6 +132,10 @@ var Config_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetConfig",
 			Handler:    _Config_GetConfig_Handler,
+		},
+		{
+			MethodName: "SetConfig",
+			Handler:    _Config_SetConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

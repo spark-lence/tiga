@@ -8,6 +8,7 @@ option java_outer_classname = "Config";
 message ConfigRequest{
     string key=1;
     string env=2;
+    string value=3;
 }
 
 message ConfigResponse{
@@ -17,4 +18,5 @@ message ConfigResponse{
 service Config {
     // Sends a greeting
     rpc GetConfig (ConfigRequest) returns (ConfigResponse) {}
+    rpc SetConfig (ConfigRequest) returns (ConfigResponse) {}
   }

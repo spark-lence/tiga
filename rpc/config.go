@@ -19,7 +19,7 @@ var (
 
 type ConfigServer struct {
 	pb.UnimplementedConfigServer
-	configs map[string]*tiga.Configuration
+	configs     map[string]*tiga.Configuration
 	settingsDir string
 }
 
@@ -33,12 +33,18 @@ func (s *ConfigServer) GetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb
 
 	return &pb.ConfigResponse{Value: value}, err
 }
+func (s *ConfigServer) SetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb.ConfigResponse, error) {
+	config := s.configs[in.Env]
+	config.SetConfig(in.Key, in.Value, in.Env)
+
+	return nil, nil
+}
 func NewConfigServer(settingDir string) *ConfigServer {
 	configs := make(map[string]*tiga.Configuration)
 	configs["dev"] = tiga.InitSettings("dev", settingDir)
 	configs["prd"] = tiga.InitSettings("prd", settingDir)
 	return &ConfigServer{
-		configs: configs,
+		configs:     configs,
 		settingsDir: settingDir,
 	}
 }
