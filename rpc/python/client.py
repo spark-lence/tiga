@@ -10,7 +10,15 @@ import grpc
 
 from .pb import config_pb2_grpc, config_pb2
 
-class RemoteConfigure:
+class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class RemoteConfigure(metaclass=SingletonMeta):
     def __init__(self, env="dev", address="localhost", port=50051):
         self.channel = grpc.insecure_channel(f'{address}:{port}')
         self.stub = config_pb2_grpc.ConfigStub(self.channel)
