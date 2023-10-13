@@ -93,3 +93,19 @@ func (m MongodbDao) PagingQuery(collection string, filter interface{}, limit int
 	// r.Decode(&data)
 	return data, nil
 }
+
+func (m MongodbDao) AggregateQuery(collection string, pipeline []bson.D) ([]bson.M, error) {
+	// 执行聚合查询
+	c := m.db.Collection(collection)
+	cursor, err := c.Aggregate(context.TODO(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	// 打印出今天没有更新的appid
+	var results []bson.M
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
