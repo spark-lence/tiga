@@ -39,3 +39,6 @@ class RemoteConfigure(metaclass=SingletonMeta):
 
     def get_object(self, key) -> list:
         return pickle.loads(self.get(key))
+
+    def set(self, key, value):
+        return self.stub.SetConfig(config_pb2.ConfigRequest(key=key, value=value, env=self.env))
