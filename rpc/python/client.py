@@ -24,7 +24,7 @@ class RemoteConfigure(metaclass=SingletonMeta):
         self.stub = config_pb2_grpc.ConfigStub(self.channel)
         self.env = env
 
-    @cachetools.ttl_cache(maxsize=1024, ttl=60)
+    @cachetools.TTLCache(maxsize=1024, ttl=60)
     def get(self, key) -> bytes:
         return self.stub.GetConfig(config_pb2.ConfigRequest(key=key, env=self.env)).value
 
