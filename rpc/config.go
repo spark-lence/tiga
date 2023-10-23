@@ -27,7 +27,7 @@ func (s *ConfigServer) GetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb
 	config := s.configs[in.Env]
 	val := config.Get(in.Key)
 	if val == nil {
-		return nil, fmt.Errorf("Not found config key:%s", in.Key)
+		return &pb.ConfigResponse{}, fmt.Errorf("Not found config key:%s", in.Key)
 	}
 	value, err := json.Marshal(val)
 
@@ -37,7 +37,7 @@ func (s *ConfigServer) SetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb
 	config := s.configs[in.Env]
 	config.SetConfig(in.Key, in.Value, in.Env)
 
-	return nil, nil
+	return &pb.ConfigResponse{}, nil
 }
 func NewConfigServer(settingDir string) *ConfigServer {
 	configs := make(map[string]*tiga.Configuration)
