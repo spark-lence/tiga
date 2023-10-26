@@ -2,7 +2,6 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/spark-lence/tiga"
 	pb "github.com/spark-lence/tiga/rpc/pb"
+	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
 )
 
@@ -25,13 +25,16 @@ type ConfigServer struct {
 
 func (s *ConfigServer) GetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb.ConfigResponse, error) {
 	config := s.configs[in.Env]
-	val := config.Get(in.Key)
-	if val == nil {
-		return &pb.ConfigResponse{}, fmt.Errorf("Not found config key:%s", fmt.Sprintf("%s.%s", in.Env, in.Key))
-	}
-	value, err := json.Marshal(val)
+	val, err := config.GetValue(in.Key)
 
-	return &pb.ConfigResponse{Value: value}, err
+	if val == nil || err != nil {
+		return &pb.ConfigResponse{}, fmt.Errorf("Not found config key:%s,%w", in.Key, err)
+	}
+	bytesData, err := msgpack.Marshal(val)
+	if err != nil {
+		log.Fatalf("Error encoding to MsgPack: %v", err)
+	}
+	return &pb.ConfigResponse{Value: bytesData}, err
 }
 func (s *ConfigServer) SetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb.ConfigResponse, error) {
 	config := s.configs[in.Env]

@@ -40,6 +40,10 @@ func (c Configuration) GetValue(key string) (interface{}, error) {
 	value := c.Get(key)
 	return value, nil
 }
+func (c Configuration) GetString(key string) string {
+	value := c.Get(key)
+	return value.(string)
+}
 func (c Configuration) GetEnv() string {
 	env, ok := os.LookupEnv("RUN_MODE")
 	if !ok {
@@ -59,7 +63,7 @@ func (c Configuration) load(dir string) bool {
 	c.SetConfigType("yaml")
 	readErr := c.ReadInConfig()
 	if readErr != nil {
-		return false
+		panic(readErr)
 	}
 	err := c.Unmarshal(c)
 	return err == nil
