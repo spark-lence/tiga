@@ -34,13 +34,17 @@ class RemoteConfigure(metaclass=SingletonMeta):
         return msgpack.unpackb(val, raw=False)
 
     def get_int(self, key) -> int:
-        return int(self.get(key))
+        val = self.get(key)
+
+        return int(msgpack.unpackb(val, raw=False))
 
     def get_bool(self, key) -> bool:
-        return bool(self.get(key))
+        val = self.get(key)
+        return msgpack.unpackb(val, raw=False)
 
     def get_object(self, key) -> list:
-        return pickle.loads(self.get(key))
+        val = self.get(key)
+        return msgpack.unpackb(val, raw=False)
 
     def set(self, key, value):
         return self.stub.SetConfig(config_pb2.ConfigRequest(key=key, value=value, env=self.env))
