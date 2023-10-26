@@ -25,7 +25,7 @@ type ConfigServer struct {
 
 func (s *ConfigServer) GetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb.ConfigResponse, error) {
 	config := s.configs[in.Env]
-	val := config.Get(fmt.Sprintf("%s.%s", in.Env, in.Key))
+	val := config.Get(in.Key)
 	if val == nil {
 		return &pb.ConfigResponse{}, fmt.Errorf("Not found config key:%s", fmt.Sprintf("%s.%s", in.Env, in.Key))
 	}
