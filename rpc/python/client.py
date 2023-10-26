@@ -8,6 +8,7 @@
 import pickle
 import grpc
 import cachetools
+import msgpack
 from .pb import config_pb2_grpc, config_pb2
 
 class SingletonMeta(type):
@@ -29,7 +30,8 @@ class RemoteConfigure(metaclass=SingletonMeta):
         return self.stub.GetConfig(config_pb2.ConfigRequest(key=key, env=self.env)).value
 
     def get_string(self, key) -> str:
-        return self.get(key).decode("utf-8")
+        val = self.get(key)
+        return msgpack.unpackb(val, raw=False)
 
     def get_int(self, key) -> int:
         return int(self.get(key))
