@@ -42,10 +42,9 @@ func (s *ConfigServer) SetConfig(ctx context.Context, in *pb.ConfigRequest) (*pb
 
 	return &pb.ConfigResponse{}, nil
 }
-func NewConfigServer(settingDir string) *ConfigServer {
+func NewConfigServer(settingDir string,env string) *ConfigServer {
 	configs := make(map[string]*tiga.Configuration)
-	configs["dev"] = tiga.InitSettings("dev", settingDir)
-	configs["prd"] = tiga.InitSettings("prd", settingDir)
+	configs[env] = tiga.InitSettings(env, settingDir)
 	return &ConfigServer{
 		configs:     configs,
 		settingsDir: settingDir,
@@ -65,7 +64,7 @@ func (s *ConfigServer) Start() {
 	}
 }
 
-func (s *ConfigServer) Refrsh() {
+func (s *ConfigServer) Refresh() {
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
