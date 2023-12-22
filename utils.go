@@ -1,10 +1,12 @@
 package tiga
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"text/template"
 	"strconv"
 	"strings"
 	"time"
@@ -40,4 +42,21 @@ func ThousandsSeparatorToInt(src string) int {
 	}
 	return num
 
+}
+
+func URLTemplateRender(urlTemplate string, params map[string]interface{}) (string,error) {
+	// 创建一个新的模板
+	tmpl, err := template.New("url").Parse(urlTemplate)
+	if err != nil {
+		return "", fmt.Errorf("parse url template error: %w", err)
+	}
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, params)
+	if err != nil {
+		return "", fmt.Errorf("execute url template error: %w", err)
+	}
+
+	// 打印或使用结果
+	renderedURL := buf.String()
+	return renderedURL, nil
 }
