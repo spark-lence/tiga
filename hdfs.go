@@ -7,8 +7,8 @@ import (
 	"github.com/colinmarc/hdfs/v2"
 )
 
-type HdfsDao struct{
-	client	*hdfs.Client
+type HdfsDao struct {
+	client *hdfs.Client
 }
 
 func NewHdfsDao(addr string) *HdfsDao {
@@ -17,15 +17,15 @@ func NewHdfsDao(addr string) *HdfsDao {
 		panic(err)
 	}
 	return &HdfsDao{
-		client:client,
+		client: client,
 	}
 }
 
 func (h *HdfsDao) Put(src string, dst string) error {
-	dir:=filepath.Dir(dst)
-	err:=h.client.MkdirAll(dir,0755)
-	if err!=nil{
-		return fmt.Errorf("创建目录失败:%w",err)
+	dir := filepath.Dir(dst)
+	err := h.client.MkdirAll(dir, 0755)
+	if err != nil {
+		return fmt.Errorf("创建目录失败:%w", err)
 	}
 	return h.client.CopyToRemote(src, dst)
 }
