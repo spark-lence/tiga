@@ -3,6 +3,7 @@ package tiga
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -37,12 +38,25 @@ func newConfig(env string) *Configuration {
 
 }
 func (c Configuration) GetValue(key string) (interface{}, error) {
+	if !strings.Contains(key, c.env) {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
 	value := c.Get(key)
 	return value, nil
 }
 func (c Configuration) GetString(key string) string {
+	if !strings.Contains(key, c.env) {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
 	value := c.Get(key)
 	return value.(string)
+}
+func (c Configuration) GetInt(key string) int {
+	if !strings.Contains(key, c.env) {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
+	value := c.Get(key)
+	return value.(int)
 }
 func (c Configuration) GetEnv() string {
 	env, ok := os.LookupEnv("RUN_MODE")

@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
+
 type TimestamppbSerializer struct {
 }
 type MySQLDao struct {
@@ -70,8 +71,6 @@ func (m MySQLDao) Count(model interface{}, query interface{}, args ...interface{
 	err := m.db.Where(query, args...).Model(model).Count(&count).Error
 	return count, err
 }
-
-
 
 func (s TimestamppbSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
 	// 确认 dbValue 是 time.Time 类型
