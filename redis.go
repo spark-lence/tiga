@@ -5,16 +5,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bsm/redislock"
+	"github.com/go-redis/redismock/v9"
 	"github.com/redis/go-redis/v9"
 )
 
 type RedisDao struct {
 	client *redis.Client
 	config Configuration
+	locker *redislock.Client
 }
 
 // NewRdbConfig redis 配置构造函数
-func NewRdbConfig(config Configuration) *redis.Options {
+func NewRdbConfig(config *Configuration) *redis.Options {
 	env := config.GetEnv()
 	password := config.GetConfigByEnv(env, "redis.password").(string)
 	username := config.GetConfigByEnv(env, "redis.username").(string)
@@ -45,8 +48,14 @@ func NewRdbConfig(config Configuration) *redis.Options {
 
 	}
 }
+func NewRedisMockDao() *RedisDao {
+	db, _ := redismock.NewClientMock()
+	return &RedisDao{
+		client: db,
+	}
 
-func NewRedisDao(config Configuration) *RedisDao {
+}
+func NewRedisDao(config *Configuration) *RedisDao {
 	client := redis.NewClient(NewRdbConfig(config))
 	err := client.Ping(context.TODO()).Err()
 	if err != nil {
@@ -54,6 +63,7 @@ func NewRedisDao(config Configuration) *RedisDao {
 	}
 	return &RedisDao{
 		client: client,
+		locker: redislock.New(client),
 	}
 }
 
@@ -68,23 +78,31 @@ func (r *RedisDao) BFAdd(key string, value string) bool {
 		return false
 	}
 }
-func (r *RedisDao) Set(key string, value interface{}, expiration time.Duration) error {
+func (r *RedisDao) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
 	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
-	err := r.client.Set(context.Background(), key, value, expiration).Err()
+	err := r.client.Set(ctx, key, value, expiration).Err()
 	if err != nil {
 		return fmt.Errorf("redis set %s to %v error %w", key, value, err)
 	}
 	return nil
 }
-func (r *RedisDao) Get(key string) string {
+func (r *RedisDao) Del(ctx context.Context,key string) error {
 	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
-	val := r.client.Get(context.Background(), key).Val()
+	err := r.client.Del(ctx, key).Err()
+	if err != nil {
+		return fmt.Errorf("rdel %s error %w", key, err)
+	}
+	return nil
+}
+func (r *RedisDao) Get(ctx context.Context, key string) string {
+	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
+	val := r.client.Get(ctx, key).Val()
 
 	return val
 }
-func (r *RedisDao) GetInt(key string) (int, error) {
+func (r *RedisDao) GetInt(ctx context.Context, key string) (int, error) {
 	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
-	val, err := r.client.Get(context.Background(), key).Int()
+	val, err := r.client.Get(ctx, key).Int()
 
 	return val, err
 }
@@ -99,4 +117,21 @@ func (r *RedisDao) SetNX(key string, val interface{}, expiration time.Duration) 
 	ok, err := r.client.SetNX(context.Background(), key, val, expiration).Result()
 
 	return ok, err
+}
+func (r *RedisDao) Exists(ctx context.Context, key string) (bool, error) {
+	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
+	ok, err := r.client.Exists(ctx, key).Result()
+	return ok == 1, err
+}
+
+func (r *RedisDao) Lock(ctx context.Context, key string, expiration time.Duration) (*redislock.Lock, error) {
+	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
+	lock, err := r.locker.Obtain(ctx, key, expiration, nil)
+	if err != nil {
+		return nil, err
+	}
+	return lock, nil
+}
+func (r *RedisDao) Scan(ctx context.Context,cur uint64, count int64,prefix string) ([]string,uint64,error) {
+	return r.client.Scan(ctx, cur, prefix, count).Result()
 }

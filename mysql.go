@@ -2,22 +2,49 @@ package tiga
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
 
 type TimestamppbSerializer struct {
 }
+type JSONField struct {
+}
 type MySQLDao struct {
 	db *gorm.DB
 }
 
+
+func NewMySQLMockDao() (*MySQLDao, sqlmock.Sqlmock) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		panic(err)
+	}
+	mock.ExpectQuery("SELECT VERSION()").WillReturnRows(sqlmock.NewRows([]string{"version"}).AddRow("5.7.31"))
+
+	dialector := mysql.New(mysql.Config{
+		Conn:       db,
+		DriverName: "mysql",
+	})
+	_DB, err := gorm.Open(dialector, &gorm.Config{})
+	if err != nil {
+		panic(err)
+	}
+	return &MySQLDao{
+		db: _DB,
+	}, mock
+
+}
 func NewMySQLDao(dsn string) *MySQLDao {
 	db, err := gorm.Open(mysql.New(mysql.Config{
 		DSN:                       dsn,   // DSN
@@ -26,7 +53,9 @@ func NewMySQLDao(dsn string) *MySQLDao {
 		DontSupportRenameIndex:    true,  // 重命名索引时采用删除并新建的方式，MySQL 5.7 之前的数据库和 MariaDB 不支持重命名索引
 		DontSupportRenameColumn:   true,  // 用 `change` 重命名列，MySQL 8 之前的数据库和 MariaDB 不支持重命名列
 		SkipInitializeWithVersion: false, // 根据当前 MySQL 版本自动配置
-	}), &gorm.Config{})
+	}), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
 		panic(err)
 	}
@@ -43,6 +72,7 @@ func (m MySQLDao) Close() error {
 }
 func (m MySQLDao) RegisterTtimepbSerializer() {
 	schema.RegisterSerializer("timepb", TimestamppbSerializer{})
+	schema.RegisterSerializer("json", JSONField{})
 
 }
 func (m MySQLDao) Save(model interface{}) error {
@@ -51,11 +81,31 @@ func (m MySQLDao) Save(model interface{}) error {
 func (m MySQLDao) Create(model interface{}) error {
 	return m.db.Create(model).Error
 }
-func (m MySQLDao) Update(model interface{}) error {
-	return m.db.Updates(model).Error
+func (m MySQLDao) Update(model interface{}, value interface{}) error {
+	return m.db.Model(model).Updates(value).Error
 }
-func (m MySQLDao) Delete(model interface{}) error {
-	return m.db.Delete(model).Error
+func (m MySQLDao) UpdateColumns(model interface{}, value interface{}) error {
+	return m.db.Where(model).Updates(value).Error
+}
+func (m MySQLDao) UpdateWithQuery(model interface{}, value interface{}, fields []string, query interface{}, args ...interface{}) error {
+	return m.db.Model(model).Where(query, args...).Select(fields).Updates(value).Error
+}
+func (m MySQLDao) UpdateSelectColumns(model interface{}, value interface{}, selectCol ...string) error {
+	return m.db.Where(model).Select(selectCol).Updates(value).Error
+}
+func (m MySQLDao) Delete(model interface{}, conds ...interface{}) error {
+	return m.db.Delete(model, conds...).Error
+}
+func (m MySQLDao) BatchUpdates(models []interface{}, selectCol ...string) error {
+	tx := m.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	for _, model := range models {
+		tx.Select(selectCol).Updates(model)
+	}
+	return tx.Commit().Error
+
 }
 func (m MySQLDao) Find(model interface{}, query interface{}, args ...interface{}) error {
 	return m.db.Where(query, args...).Find(model).Error
@@ -63,13 +113,52 @@ func (m MySQLDao) Find(model interface{}, query interface{}, args ...interface{}
 func (m MySQLDao) First(model interface{}, query interface{}, args ...interface{}) error {
 	return m.db.Where(query, args...).First(model).Error
 }
+func (m MySQLDao) FirstWithMuiltQuery(model interface{}, query *gorm.DB) error {
+	return query.First(model).Error
+}
 func (m MySQLDao) Last(model interface{}, query interface{}, args ...interface{}) error {
 	return m.db.Where(query, args...).Last(model).Error
+}
+func (m MySQLDao) FindAll(model interface{}, query interface{}, args ...interface{}) error {
+	return m.db.Where(query, args...).Find(model).Error
+}
+func (m MySQLDao) AutoMigrate(model interface{}) error {
+	return m.db.AutoMigrate(model)
 }
 func (m MySQLDao) Count(model interface{}, query interface{}, args ...interface{}) (int64, error) {
 	var count int64
 	err := m.db.Where(query, args...).Model(model).Count(&count).Error
 	return count, err
+}
+func (m MySQLDao) CreateInBatches(models interface{}) error {
+	size, err := GetElementCount(models)
+	if err != nil {
+		return err
+	}
+	return m.db.CreateInBatches(models, size).Error
+}
+func (m MySQLDao) Where(query interface{}, args ...interface{}) *gorm.DB {
+	return m.db.Where(query, args...)
+}
+func (m MySQLDao) GroupAndCount(model interface{}, result interface{}, groupField string, selectQuery string, query interface{}, args ...interface{}) error {
+	err := m.db.Model(model).Select(selectQuery).Where(query, args...).Group(groupField).Find(result).Error
+	return err
+}
+func (m MySQLDao) Begin(opts ...*sql.TxOptions) *gorm.DB {
+	return m.db.Begin(opts...)
+}
+func (m MySQLDao) GetModel(model interface{}) *gorm.DB {
+	return m.db.Model(model)
+}
+func (m MySQLDao) GetTable(name string, args ...interface{}) *gorm.DB {
+	return m.db.Table(name, args...)
+}
+func (m MySQLDao) TableName(model interface{}) (string, error) {
+	err := m.db.Statement.Parse(model)
+	if err != nil {
+		return "", err
+	}
+	return m.db.Statement.Table, nil
 }
 
 func (s TimestamppbSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
@@ -86,14 +175,7 @@ func (s TimestamppbSerializer) Scan(ctx context.Context, field *schema.Field, ds
 
 	// 将 time.Time 转换为 *timestamppb.Timestamp
 	timestamp := timestamppb.New(dbTime)
-
-	// 确保 dst 可以设置值
-	if dst.CanSet() {
-		// 设置转换后的值
-		dst.Set(reflect.ValueOf(timestamp))
-	} else {
-		return errors.New("destination cannot be set")
-	}
+	field.ReflectValueOf(ctx, dst).Set(reflect.ValueOf(timestamp))
 	return nil
 }
 
@@ -110,7 +192,37 @@ func (s TimestamppbSerializer) Value(ctx context.Context, field *schema.Field, d
 	}
 
 	// 将 *timestamppb.Timestamp 转换为 time.Time
-	dbTime := timestamp.AsTime()
+	dbTime := timestamp.AsTime().UTC()
 
 	return dbTime, nil
+}
+
+func (s JSONField) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
+	// 确认 dbValue 是 time.Time 类型
+	if dbValue == nil {
+		return nil // 如果 dbValue 是 nil，没有什么要设置的
+	}
+
+	// 断言 dbValue 的类型是 datatypes.JSON
+	dbJSON, ok := dbValue.([]byte)
+	if !ok {
+		return errors.New("dbJSON is not a datatypes.JSON type")
+	}
+
+	// 将 time.Time 转换为 *timestamppb.Timestamp
+	var stringArray []string
+	if err := json.Unmarshal(dbJSON, &stringArray); err != nil {
+
+		return err
+	}
+	field.ReflectValueOf(ctx, dst).Set(reflect.ValueOf(stringArray))
+	return nil
+}
+
+func (s JSONField) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
+	// 确认 value 是 *timestamppb.Timestamp 类型
+	if fieldValue == nil {
+		return nil, nil // 如果 value 是 nil，没有什么要设置的
+	}
+	return InterfaceToBytes(fieldValue)
 }

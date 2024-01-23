@@ -23,7 +23,7 @@ type Configuration struct {
 // var onceConfig sync.Once
 // var config *Configuration = nil
 
-func newConfig(env string) *Configuration {
+func NewConfig(env string) *Configuration {
 	// onceConfig.Do(func() {
 	// 	config = &Configuration{
 	// 		viper.New(),
@@ -51,12 +51,35 @@ func (c Configuration) GetString(key string) string {
 	value := c.Get(key)
 	return value.(string)
 }
+func (c Configuration) GetStrings(key string) []string {
+	if !strings.Contains(key, c.env) {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
+	values := c.GetStringSlice(key)
+	return values
+}
 func (c Configuration) GetInt(key string) int {
 	if !strings.Contains(key, c.env) {
 		key = fmt.Sprintf("%s.%s", c.env, key)
 	}
 	value := c.Get(key)
-	return value.(int)
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+
+}
+func (c Configuration) UnmarshalKey(key string, rawVal any, opts ...viper.DecoderConfigOption) error {
+	if !strings.Contains(key, c.env) {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
+	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
 func (c Configuration) GetEnv() string {
 	env, ok := os.LookupEnv("RUN_MODE")
@@ -64,6 +87,9 @@ func (c Configuration) GetEnv() string {
 		env = c.env
 	}
 	return env
+}
+func (c Configuration) SetEnv(env string) {
+	c.env = env
 }
 func (c Configuration) GetConfigByEnv(env string, key string) interface{} {
 	return c.Get(fmt.Sprintf("%s.%s", env, key))
@@ -83,7 +109,7 @@ func (c Configuration) load(dir string) bool {
 	return err == nil
 }
 func InitSettings(env string, settingDir string) *Configuration {
-	config := newConfig(env)
+	config := NewConfig(env)
 	// Config.load(wd)
 	config.load(settingDir)
 	config.WatchConfig()

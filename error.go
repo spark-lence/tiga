@@ -34,3 +34,18 @@ func NewErrorWarp(err error, stack string) ErrorWarp {
 func (e ErrorWarp) Error() string {
 	return fmt.Sprintf("%s:%s:%s:%s", e.File, e.Func, e.Err.Error(), e.Stack)
 }
+func CheckMySQLDuplicateError(err error) bool {
+	if err != nil && strings.Contains(err.Error(), "Duplicate entry") {
+		return true
+	}
+	return false
+}
+
+
+type Errors struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	ErrMsg string `json:"err_msg"`
+	
+
+}
