@@ -116,7 +116,6 @@ func (q QueryTags) BuildConditions(base *gorm.DB, conditions interface{}) *gorm.
 					ok = true
 					continue
 				}
-
 				condition := conditions["condition"]
 				if !q.isEmptyValue(valueField) {
 					base = base.Where(condition, valueField.Interface())

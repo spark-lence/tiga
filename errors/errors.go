@@ -28,6 +28,7 @@ type Errors struct {
 	errWrap error
 }
 type ErrorOption func(*Errors)
+
 func UnwrapSvrErr(err error) *Errors {
 	var se *Errors
 	if errors.As(err, &se) {
@@ -58,11 +59,14 @@ func (s *Errors) Error() string {
 }
 
 func New(srvErr error, svrMsg string, opts ...ErrorOption) *Errors {
-	// message, code, grpcCode := checkErrorMessage(srcErr)
+
 	err := &Errors{
 		errWrap: errors.Wrap(srvErr, svrMsg),
-		srvErr: &SrvError{},
+		srvErr:  &SrvError{
+
+		},
 	}
+	fmt.Println(err.errWrap, srvErr)
 	for _, opt := range opts {
 		opt(err)
 	}
@@ -71,31 +75,34 @@ func New(srvErr error, svrMsg string, opts ...ErrorOption) *Errors {
 func (s *Errors) ToGrpcStatus() *status.Status {
 	return status.New(codes.Code(s.srvErr.GrpcStatus), errors.Cause(s.errWrap).Error())
 }
-// func WithInternalError(message string, code int32) ErrorOption {
-// 	return func(e *Errors) {
-// 		e.srvErr.Code = code
-// 		e.srvErr.Message = message
-// 		// e.srvErr.ErrMessage = fmt.Sprintf(errMessage, args...)
-// 	}
-// }
+
+//	func WithInternalError(message string, code int32) ErrorOption {
+//		return func(e *Errors) {
+//			e.srvErr.Code = code
+//			e.srvErr.Message = message
+//			// e.srvErr.ErrMessage = fmt.Sprintf(errMessage, args...)
+//		}
+//	}
 func WithMsgAndCode(code int32, msg string, args ...interface{}) ErrorOption {
 	return func(e *Errors) {
 		e.srvErr.Code = code
 		e.srvErr.Message = fmt.Sprintf(msg, args...)
 	}
 }
-// func WithParamsError(code int32, message string, args ...interface{}) ErrorOption {
-// 	return func(e *Errors) {
-// 		e.srvErr.Code = code
-// 		e.srvErr.Message = fmt.Sprintf(message, args...)
-// 	}
-// }
-// func WithNotFoundError(code int32, message string, args ...interface{}) ErrorOption {
-// 	return func(e *Errors) {
-// 		e.srvErr.Code = code
-// 		e.srvErr.Message = fmt.Sprintf(message, args...)
-// 	}
-// }
+
+//	func WithParamsError(code int32, message string, args ...interface{}) ErrorOption {
+//		return func(e *Errors) {
+//			e.srvErr.Code = code
+//			e.srvErr.Message = fmt.Sprintf(message, args...)
+//		}
+//	}
+//
+//	func WithNotFoundError(code int32, message string, args ...interface{}) ErrorOption {
+//		return func(e *Errors) {
+//			e.srvErr.Code = code
+//			e.srvErr.Message = fmt.Sprintf(message, args...)
+//		}
+//	}
 func Wrapf(err error, format string, args ...interface{}) error {
 	return errutil.WrapWithDepthf(1+1, err, format, args...)
 }

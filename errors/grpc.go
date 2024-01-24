@@ -2,6 +2,7 @@ package errors
 
 import (
 	"context"
+	"runtime/debug"
 
 	"github.com/cockroachdb/errors"
 	"github.com/sirupsen/logrus"
@@ -71,6 +72,8 @@ func InterceptorWithLogger(logger *logrus.Logger) grpc.UnaryServerInterceptor {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Error("Recovered in unaryInterceptor: %w", r)
+				stackTrace := debug.Stack()
+				log.Error(string(stackTrace))
 				err = status.Errorf(codes.Internal, "Internal server error")
 			}
 		}()
