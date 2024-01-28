@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -23,7 +24,6 @@ type JSONField struct {
 type MySQLDao struct {
 	db *gorm.DB
 }
-
 
 func NewMySQLMockDao() (*MySQLDao, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
@@ -45,7 +45,13 @@ func NewMySQLMockDao() (*MySQLDao, sqlmock.Sqlmock) {
 	}, mock
 
 }
-func NewMySQLDao(dsn string) *MySQLDao {
+func NewMySQLDao(config *Configuration) *MySQLDao {
+	host := config.GetString("mysql.host")
+	port := config.GetInt("mysql.port")
+	user := config.GetString("mysql.user")
+	password := config.GetString("mysql.password")
+	database := config.GetString("mysql.database")
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, database)
 	db, err := gorm.Open(mysql.New(mysql.Config{
 		DSN:                       dsn,   // DSN
 		DefaultStringSize:         256,   // string 类型字段的默认长度
