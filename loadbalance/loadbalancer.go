@@ -1,9 +1,12 @@
 package loadbalance
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 type Endpoint interface {
-	Get() (interface{}, error)
+	Get(context.Context) (interface{}, error)
 	Addr() string
 	Close()error
 }

@@ -1,6 +1,7 @@
 package loadbalance
 
 import (
+	"context"
 	"testing"
 
 	c "github.com/smartystreets/goconvey/convey"
@@ -11,7 +12,7 @@ type weightEndpointImpl struct {
 	currentWeight int
 }
 
-func (w *weightEndpointImpl) Get() (interface{}, error) {
+func (w *weightEndpointImpl) Get(_ context.Context) (interface{}, error) {
 	return nil, nil
 }
 func (w *weightEndpointImpl) Addr() string {
