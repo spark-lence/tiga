@@ -37,9 +37,9 @@ type Stats struct {
 	Misses   uint32 // number of times free connection was NOT found in the pool
 	Timeouts uint32 // number of times a wait timeout occurred
 
-	TotalConns uint32 // number of total connections in the pool
-	IdleConns  uint32 // number of idle connections in the pool
-	StaleConns uint32 // number of stale connections removed from the pool
+	TotalConns   uint32 // number of total connections in the pool
+	IdleConns    uint32 // number of idle connections in the pool
+	StaleConns   uint32 // number of stale connections removed from the pool
 	InvalidConns uint32 // number of invalid connections removed from the pool
 }
 type Connection interface {
@@ -73,6 +73,7 @@ type PoolOptions struct {
 	MaxIdleConns       int
 	MaxActiveConns     int
 }
+type PoolOptionsBuildOption func(*PoolOptions)
 
 type lastDialErrorWrap struct {
 	err error
@@ -101,8 +102,58 @@ type ConnPool struct {
 	_closed uint32 // atomic
 }
 
-func NewPoolOptions(Dialer func(context.Context) (Connection, error)) *PoolOptions {
-	return &PoolOptions{
+// WithPoolSize 设置连接池的大小
+func WithPoolSize(size int) PoolOptionsBuildOption {
+	return func(o *PoolOptions) {
+		o.PoolSize = size
+	}
+}
+
+// WithPoolTimeout 设置排队等待连接的超时时间
+func WithPoolTimeout(timeout time.Duration) PoolOptionsBuildOption {
+	return func(o *PoolOptions) {
+		o.PoolTimeout = timeout
+	}
+}
+
+// WithMinIdleConns 设置连接池的最小空闲连接数
+func WithMinIdleConns(minIdleConns int) PoolOptionsBuildOption {
+	return func(o *PoolOptions) {
+		o.MinIdleConns = minIdleConns
+	}
+}
+
+// WithMaxIdleConns 设置连接池的最大空闲连接数
+func WithMaxIdleConns(maxIdleConns int) PoolOptionsBuildOption {
+	return func(o *PoolOptions) {
+		o.MaxIdleConns = maxIdleConns
+	}
+}
+
+// WithMaxActiveConns 设置连接池的最大活跃连接数
+func WithMaxActiveConns(maxActiveConns int) PoolOptionsBuildOption {
+	return func(o *PoolOptions) {
+		o.MaxActiveConns = maxActiveConns
+	}
+}
+
+// WithConnectionUsedHook 设置连接使用的钩子函数
+func WithConnectionUsedHook(hook ...ConnUsedHook) PoolOptionsBuildOption {
+	return func(o *PoolOptions) {
+		o.ConnectionUsedHook = append(o.ConnectionUsedHook, hook...)
+	}
+
+}
+
+// WithDialer 设置连接池的拨号函数
+func WithDialer(dialer func(context.Context) (Connection, error)) PoolOptionsBuildOption {
+	return func(o *PoolOptions) {
+		o.Dialer = dialer
+	}
+
+}
+func NewPoolOptions(Dialer func(context.Context) (Connection, error),opts ...PoolOptionsBuildOption) *PoolOptions {
+	options:= &PoolOptions{
 		ConnectionUsedHook: make([]ConnUsedHook, 0),
 		Dialer:             Dialer,
 		PoolSize:           10,
@@ -111,6 +162,11 @@ func NewPoolOptions(Dialer func(context.Context) (Connection, error)) *PoolOptio
 		MaxIdleConns:       6,
 		MaxActiveConns:     10,
 	}
+	for _, opt := range opts {
+		opt(options)
+	
+	}
+	return options
 
 }
 func NewConnPool(opt *PoolOptions) *ConnPool {
@@ -302,7 +358,6 @@ func (p *ConnPool) Get(ctx context.Context) (Connection, error) {
 			break
 		}
 
-
 		// 检查连接是否有效
 		if !cn.Validate() {
 			atomic.AddUint32(&p.stats.InvalidConns, 1)
@@ -410,8 +465,6 @@ func (p *ConnPool) Release(ctx context.Context, cn Connection) {
 		return
 	}
 
-
-
 	var shouldCloseConn bool
 
 	p.connsMu.Lock()
@@ -494,9 +547,9 @@ func (p *ConnPool) Stats() *Stats {
 		Misses:   atomic.LoadUint32(&p.stats.Misses),
 		Timeouts: atomic.LoadUint32(&p.stats.Timeouts),
 
-		TotalConns: uint32(p.Len()),
-		IdleConns:  uint32(p.IdleLen()),
-		StaleConns: atomic.LoadUint32(&p.stats.StaleConns),
+		TotalConns:   uint32(p.Len()),
+		IdleConns:    uint32(p.IdleLen()),
+		StaleConns:   atomic.LoadUint32(&p.stats.StaleConns),
 		InvalidConns: atomic.LoadUint32(&p.stats.InvalidConns),
 	}
 }
