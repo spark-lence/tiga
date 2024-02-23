@@ -1,4 +1,4 @@
-package tiga
+package pool
 
 import (
 	"sync"
