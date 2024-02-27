@@ -8,17 +8,16 @@ import (
 type ShortestExpectedDelayEndpoint interface {
 	Endpoint
 	ActivateConnections() int
-	AddActivateConnection()
 	Weight() int
 }
 
 type ShortestExpectedDelayBalance struct {
 	lock sync.Mutex
-	endpoints []ShortestExpectedDelayEndpoint
+	endpoints []Endpoint
 
 }
 
-func NewShortestExpectedDelayBalance(endpoints []ShortestExpectedDelayEndpoint) LoadBalance {
+func NewShortestExpectedDelayBalance(endpoints []Endpoint) LoadBalance {
 	return &ShortestExpectedDelayBalance{
 		endpoints: endpoints,
 		lock: sync.Mutex{},
@@ -47,20 +46,22 @@ func (l *ShortestExpectedDelayBalance) Select(args ...interface{}) (Endpoint, er
 	if len(l.endpoints) == 0 {
 		return nil, ErrNoEndpoint
 	}
-	min := l.endpoints[0]
+	min := l.endpoints[0].(ShortestExpectedDelayEndpoint)
 	// Overhead = （ACTIVE+1）*256/Weight
 	minOverhead := float64((min.ActivateConnections() + 1) * 256) / float64(min.Weight())
 	for _, endpoint := range l.endpoints {
+		endpoint:=endpoint.(ShortestExpectedDelayEndpoint)
 		overhead := float64((endpoint.ActivateConnections() + 1) * 256) / float64(endpoint.Weight())
 		if overhead < minOverhead {
 			min = endpoint
 			minOverhead = overhead
 		}
 	}
-	min.AddActivateConnection()
 	return min, nil
 }
-
+func (s *ShortestExpectedDelayBalance)GetEndpoints() []Endpoint{
+	return s.endpoints
+}
 func (l *ShortestExpectedDelayBalance) Name() string {
 	return "ShortestExpectedDelay"
 }

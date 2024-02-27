@@ -31,17 +31,6 @@ var timers = sync.Pool{
 	},
 }
 
-// Stats contains pool state information and accumulated stats.
-type Stats struct {
-	Hits     uint32 // number of times free connection was found in the pool
-	Misses   uint32 // number of times free connection was NOT found in the pool
-	Timeouts uint32 // number of times a wait timeout occurred
-
-	TotalConns   uint32 // number of total connections in the pool
-	IdleConns    uint32 // number of idle connections in the pool
-	StaleConns   uint32 // number of stale connections removed from the pool
-	InvalidConns uint32 // number of invalid connections removed from the pool
-}
 type Connection interface {
 	Close() error
 	Validate() bool
@@ -97,7 +86,7 @@ type ConnPool struct {
 	// 空闲连接的数量
 	idleConnsLen int
 
-	stats Stats
+	stats *StatsImpl
 
 	_closed uint32 // atomic
 }
@@ -152,8 +141,8 @@ func WithDialer(dialer func(context.Context) (Connection, error)) PoolOptionsBui
 	}
 
 }
-func NewPoolOptions(Dialer func(context.Context) (Connection, error),opts ...PoolOptionsBuildOption) *PoolOptions {
-	options:= &PoolOptions{
+func NewPoolOptions(Dialer func(context.Context) (Connection, error), opts ...PoolOptionsBuildOption) *PoolOptions {
+	options := &PoolOptions{
 		ConnectionUsedHook: make([]ConnUsedHook, 0),
 		Dialer:             Dialer,
 		PoolSize:           10,
@@ -164,7 +153,7 @@ func NewPoolOptions(Dialer func(context.Context) (Connection, error),opts ...Poo
 	}
 	for _, opt := range opts {
 		opt(options)
-	
+
 	}
 	return options
 
@@ -176,6 +165,7 @@ func NewConnPool(opt *PoolOptions) *ConnPool {
 		queue:     make(chan struct{}, opt.PoolSize),
 		conns:     make([]Connection, 0, opt.PoolSize),
 		idleConns: make([]Connection, 0, opt.PoolSize),
+		stats:     &StatsImpl{},
 	}
 
 	p.connsMu.Lock()
@@ -371,6 +361,7 @@ func (p *ConnPool) Get(ctx context.Context) (Connection, error) {
 				return nil, err
 			}
 		}
+		atomic.AddInt32(&p.stats.InUsedConns, 1)
 		return cn, nil
 	}
 
@@ -381,6 +372,7 @@ func (p *ConnPool) Get(ctx context.Context) (Connection, error) {
 		p.freeTurn()
 		return nil, err
 	}
+	atomic.AddInt32(&p.stats.InUsedConns, 1)
 
 	return newcn, nil
 }
@@ -459,6 +451,9 @@ func (p *ConnPool) popIdle() (Connection, error) {
 
 // Release 将连接放回连接池
 func (p *ConnPool) Release(ctx context.Context, cn Connection) {
+	defer func() {
+		atomic.AddInt32(&p.stats.InUsedConns, -1)
+	}()
 	if !cn.Validate() {
 		atomic.AddUint32(&p.stats.InvalidConns, 1)
 		p.Remove(ctx, cn, ErrBadConn)
@@ -541,8 +536,8 @@ func (p *ConnPool) IdleLen() int {
 	return n
 }
 
-func (p *ConnPool) Stats() *Stats {
-	return &Stats{
+func (p *ConnPool) Stats() Stats {
+	return &StatsImpl{
 		Hits:     atomic.LoadUint32(&p.stats.Hits),
 		Misses:   atomic.LoadUint32(&p.stats.Misses),
 		Timeouts: atomic.LoadUint32(&p.stats.Timeouts),
@@ -551,6 +546,7 @@ func (p *ConnPool) Stats() *Stats {
 		IdleConns:    uint32(p.IdleLen()),
 		StaleConns:   atomic.LoadUint32(&p.stats.StaleConns),
 		InvalidConns: atomic.LoadUint32(&p.stats.InvalidConns),
+		InUsedConns:  atomic.LoadInt32(&p.stats.InUsedConns),
 	}
 }
 

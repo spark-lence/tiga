@@ -21,16 +21,19 @@ type WeightEndpoint interface {
 // 命中节点的当前权重值减去总权重值作为其新权重值，其他节点保持不变
 type WeightedRoundRobinBalance struct {
 	curIndex  int
-	endpoints []WeightEndpoint
+	endpoints []Endpoint
 	lock      sync.Mutex // 用于确保并发安全
 }
 
-func NewWeightedRoundRobinBalance(endpoints []WeightEndpoint) LoadBalance {
+func NewWeightedRoundRobinBalance(endpoints []Endpoint) LoadBalance {
 	return &WeightedRoundRobinBalance{
 		endpoints: endpoints,
 		curIndex:  0,
 		lock:      sync.Mutex{},
 	}
+}
+func (r *WeightedRoundRobinBalance) GetEndpoints() []Endpoint {
+	return r.endpoints
 }
 func (r *WeightedRoundRobinBalance) AddEndpoint(endpoint interface{}) {
 	r.lock.Lock()
@@ -57,8 +60,9 @@ func (r *WeightedRoundRobinBalance) max() (WeightEndpoint, error) {
 	if len(r.endpoints) == 0 {
 		return nil, ErrNoEndpoint
 	}
-	max := r.endpoints[0]
+	max := r.endpoints[0].(WeightEndpoint)
 	for _, endpoint := range r.endpoints {
+		endpoint := endpoint.(WeightEndpoint)
 		if endpoint.CurrentWeight() > max.CurrentWeight() {
 			max = endpoint
 		}
@@ -69,12 +73,14 @@ func (r *WeightedRoundRobinBalance) max() (WeightEndpoint, error) {
 func (r *WeightedRoundRobinBalance) sumWeight() int {
 	sum := 0
 	for _, endpoint := range r.endpoints {
+		endpoint := endpoint.(WeightEndpoint)
 		sum += endpoint.CurrentWeight()
 	}
 	return sum
 }
 func (r *WeightedRoundRobinBalance) addWeight() {
 	for _, endpoint := range r.endpoints {
+		endpoint := endpoint.(WeightEndpoint)
 		endpoint.SetWeight(endpoint.CurrentWeight() + endpoint.Weight())
 	}
 }

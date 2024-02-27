@@ -6,7 +6,7 @@ type NeverQueueBalance struct {
 	ShortestExpectedDelayBalance
 }
 
-func NewNeverQueueBalance(endpoints []ShortestExpectedDelayEndpoint) LoadBalance {
+func NewNeverQueueBalance(endpoints []Endpoint) LoadBalance {
 	return &NeverQueueBalance{
 		ShortestExpectedDelayBalance{
 			endpoints: endpoints,
@@ -21,25 +21,25 @@ func (n *NeverQueueBalance) Select(args ...interface{}) (Endpoint, error) {
 	}
 	endpoint := n.zeroConn()
 	if endpoint != nil {
-		endpoint.AddActivateConnection()
 		return endpoint, nil
 	
 	}
-	min := n.endpoints[0]
+	min := n.endpoints[0].(ShortestExpectedDelayEndpoint)
 	// Overhead = （ACTIVE+1）*256/Weight
 	minOverhead := float64((min.ActivateConnections() + 1) * 256) / float64(min.Weight())
 	for _, endpoint := range n.endpoints {
+		endpoint := endpoint.(ShortestExpectedDelayEndpoint)
 		overhead := float64((endpoint.ActivateConnections() + 1) * 256) / float64(endpoint.Weight())
 		if overhead < minOverhead {
 			min = endpoint
 			minOverhead = overhead
 		}
 	}
-	min.AddActivateConnection()
 	return min, nil
 }
 func (n *NeverQueueBalance) zeroConn() ShortestExpectedDelayEndpoint {
 	for _, endpoint := range n.endpoints {
+		endpoint := endpoint.(ShortestExpectedDelayEndpoint)
 		if endpoint.ActivateConnections() == 0 {
 			return endpoint
 		}

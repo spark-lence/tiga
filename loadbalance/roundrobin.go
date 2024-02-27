@@ -20,6 +20,9 @@ func NewRoundRobinBalance(endpoints []Endpoint) LoadBalance {
 		lock: sync.Mutex{},
 	}
 }
+func (r *RoundRobinBalance) GetEndpoints() []Endpoint {
+	return r.endpoints
+}
 func (r *RoundRobinBalance) AddEndpoint(endpoint interface{}) {
 	r.lock.Lock()
 	defer r.lock.Unlock()

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	c "github.com/smartystreets/goconvey/convey"
+	"github.com/spark-lence/tiga/pool"
 )
 
 type weightEndpointImpl struct {
@@ -19,10 +20,15 @@ func (w *weightEndpointImpl) Addr() string {
 	return ""
 
 }
+func (w *weightEndpointImpl) Stats() pool.Stats {
+	return nil
+}
 func (w *weightEndpointImpl) Close() error {
 	return nil
 }
+func (w *weightEndpointImpl) AfterTransform(ctx context.Context, cn pool.Connection) {
 
+}
 func (w *weightEndpointImpl) Weight() int {
 	return w.weight
 
@@ -42,7 +48,7 @@ func newWeightEndpoint(weight int) *weightEndpointImpl {
 }
 func TestWRR(t *testing.T) {
 	c.Convey("TestWRR", t, func() {
-		endpoints := make([]WeightEndpoint, 0)
+		endpoints := make([]Endpoint, 0)
 		endpoints = append(endpoints, newWeightEndpoint(4))
 		endpoints = append(endpoints, newWeightEndpoint(2))
 		endpoints = append(endpoints, newWeightEndpoint(1))

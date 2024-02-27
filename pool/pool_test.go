@@ -94,10 +94,10 @@ func TestPool(t *testing.T) {
 					elapsed := time.Since(now)
 					errChan <- err
 					elapsedChan <- elapsed.Seconds()
-					IdleConnsChan <- pool.Stats().IdleConns
-					connChanCount <- pool.Stats().TotalConns
+					IdleConnsChan <- pool.Stats().(*StatsImpl).IdleConns
+					connChanCount <- pool.Stats().(*StatsImpl).TotalConns
 					if errors.Is(err, ErrPoolTimeout) {
-						log.Printf("get conn failed, err:%v,%f,%d\n", err, elapsed.Seconds(), pool.Stats().IdleConns)
+						log.Printf("get conn failed, err:%v,%f,%d\n", err, elapsed.Seconds(), pool.Stats().(*StatsImpl).IdleConns)
 
 					}
 					return
@@ -148,7 +148,7 @@ func TestPool(t *testing.T) {
 
 		}
 
-		c.So(pool.Stats().InvalidConns, c.ShouldBeGreaterThanOrEqualTo, len(shouldBeRemoved))
+		c.So(pool.Stats().(*StatsImpl).InvalidConns, c.ShouldBeGreaterThanOrEqualTo, len(shouldBeRemoved))
 
 		// log.Printf("total REMOVE connections:%d\n", pool.Stats().IdleConns)
 	})

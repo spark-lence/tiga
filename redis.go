@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"unsafe"
 
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redismock/v9"
@@ -86,7 +87,7 @@ func (r *RedisDao) Set(ctx context.Context, key string, value interface{}, expir
 	}
 	return nil
 }
-func (r *RedisDao) Del(ctx context.Context,key string) error {
+func (r *RedisDao) Del(ctx context.Context, key string) error {
 	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
 	err := r.client.Del(ctx, key).Err()
 	if err != nil {
@@ -132,6 +133,43 @@ func (r *RedisDao) Lock(ctx context.Context, key string, expiration time.Duratio
 	}
 	return lock, nil
 }
-func (r *RedisDao) Scan(ctx context.Context,cur uint64, count int64,prefix string) ([]string,uint64,error) {
+func (r *RedisDao) Scan(ctx context.Context, cur uint64, count int64, prefix string) ([]string, uint64, error) {
 	return r.client.Scan(ctx, cur, prefix, count).Result()
+}
+
+func (r *RedisDao) BFScan(ctx context.Context, key string, iterator int64) ([]byte, int64, error) {
+	result := r.client.BFScanDump(ctx, key, iterator)
+	err := result.Err()
+	if err != nil {
+		return nil, 0, err
+	}
+	val := result.Val()
+	return r.StringToBytes(val.Data), val.Iter, nil
+
+}
+// func(r *RedisDao)BFInfo(ctx context.Context, key string) (map[string]int64, error){
+// 	result := r.client.BFInfo(ctx, key)
+// 	err := result.Err()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	val := result.Val()
+// 	return val.ItemsInserted,nil
+// }
+func (r *RedisDao)BatchSetBit(ctx context.Context, key string, values []uint) error{
+	pipeline := r.client.Pipeline()
+	for _, value := range values {
+		pipeline.SetBit(ctx, key, int64(value), 1)
+	}
+	_, err := pipeline.Exec(ctx)
+	return err
+
+}
+func (r *RedisDao) StringToBytes(s string) []byte {
+	return *(*[]byte)(unsafe.Pointer(
+		&struct {
+			string
+			Cap int
+		}{s, len(s)},
+	))
 }

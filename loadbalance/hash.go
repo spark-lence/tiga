@@ -34,6 +34,9 @@ func NewConsistentHashBalancer(endpoints []Endpoint, vNodes int) LoadBalance {
 	}
 	return b
 }
+func (c *ConsistentHashBalancer) GetEndpoints() []Endpoint {
+	return c.endpoints
+}
 func (c *ConsistentHashBalancer) AddEndpoint(ep interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()

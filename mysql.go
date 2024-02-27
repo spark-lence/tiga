@@ -76,7 +76,7 @@ func (m MySQLDao) Close() error {
 	}
 	return db.Close()
 }
-func (m MySQLDao) RegisterTtimepbSerializer() {
+func (m MySQLDao) RegisterTimeSerializer() {
 	schema.RegisterSerializer("timepb", TimestamppbSerializer{})
 	schema.RegisterSerializer("json", JSONField{})
 
