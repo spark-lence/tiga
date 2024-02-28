@@ -1,35 +1,31 @@
 package loadbalance
 
-import "reflect"
-
 type NeverQueueBalance struct {
-	ShortestExpectedDelayBalance
+	*ShortestExpectedDelayBalance
 }
 
 func NewNeverQueueBalance(endpoints []Endpoint) LoadBalance {
 	return &NeverQueueBalance{
-		ShortestExpectedDelayBalance{
-			endpoints: endpoints,
-		},
+		NewShortestExpectedDelayBalance(endpoints).(*ShortestExpectedDelayBalance),
 	}
 }
 func (n *NeverQueueBalance) Select(args ...interface{}) (Endpoint, error) {
-	n.lock.Lock()
-	defer n.lock.Unlock()
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 	if len(n.endpoints) == 0 {
 		return nil, ErrNoEndpoint
 	}
 	endpoint := n.zeroConn()
 	if endpoint != nil {
 		return endpoint, nil
-	
+
 	}
 	min := n.endpoints[0].(ShortestExpectedDelayEndpoint)
 	// Overhead = （ACTIVE+1）*256/Weight
-	minOverhead := float64((min.ActivateConnections() + 1) * 256) / float64(min.Weight())
+	minOverhead := float64((min.ActivateConnections()+1)*256) / float64(min.Weight())
 	for _, endpoint := range n.endpoints {
 		endpoint := endpoint.(ShortestExpectedDelayEndpoint)
-		overhead := float64((endpoint.ActivateConnections() + 1) * 256) / float64(endpoint.Weight())
+		overhead := float64((endpoint.ActivateConnections()+1)*256) / float64(endpoint.Weight())
 		if overhead < minOverhead {
 			min = endpoint
 			minOverhead = overhead
@@ -48,33 +44,5 @@ func (n *NeverQueueBalance) zeroConn() ShortestExpectedDelayEndpoint {
 }
 
 func (n *NeverQueueBalance) Name() string {
-	return "NeverQueue"
-}
-
-func (n *NeverQueueBalance) Close()error {
-	n.lock.Lock()
-	defer n.lock.Unlock()
-	for _, endpoint := range n.endpoints {
-		if err:=endpoint.Close();err!=nil{
-			return err
-		
-		}
-	}
-	return nil
-}
-func (n *NeverQueueBalance) AddEndpoint(endpoint interface{}){
-	n.lock.Lock()
-	defer n.lock.Unlock()
-	n.endpoints = append(n.endpoints, endpoint.(ShortestExpectedDelayEndpoint))
-}
-
-func (n *NeverQueueBalance) RemoveEndpoint(endpoint Endpoint){
-	n.lock.Lock()
-	defer n.lock.Unlock()
-	for i, ep := range n.endpoints {
-		if reflect.DeepEqual(ep, endpoint) {
-			n.endpoints = append(n.endpoints[:i], n.endpoints[i+1:]...)
-			break
-		}
-	}
+	return string(NQBalanceType)
 }

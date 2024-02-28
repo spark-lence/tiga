@@ -13,30 +13,29 @@ type HashCircle map[uint32]Endpoint
 type ConsistentHashBalancer struct {
 	circle     HashCircle
 	sortedKeys []uint32
-	lock       sync.Mutex
-	endpoints  []Endpoint
 	vNodes     int                      // 每个实际节点对应的虚拟节点数量
 	hashFn     func(data []byte) uint32 // 哈希函数
-
+	*BaseLoadBalance
 }
 
 func NewConsistentHashBalancer(endpoints []Endpoint, vNodes int) LoadBalance {
 	b := &ConsistentHashBalancer{
 		circle:     make(HashCircle),
 		sortedKeys: []uint32{},
-		lock:       sync.Mutex{},
-		endpoints:  endpoints,
-		vNodes:     vNodes,
-		hashFn:     crc32.ChecksumIEEE,
+
+		vNodes: vNodes,
+		hashFn: crc32.ChecksumIEEE,
+		BaseLoadBalance: &BaseLoadBalance{
+			endpoints: endpoints,
+			lock:      sync.RWMutex{},
+		},
 	}
 	for _, endpoint := range endpoints {
 		b.AddEndpoint(endpoint)
 	}
 	return b
 }
-func (c *ConsistentHashBalancer) GetEndpoints() []Endpoint {
-	return c.endpoints
-}
+
 func (c *ConsistentHashBalancer) AddEndpoint(ep interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -51,8 +50,8 @@ func (c *ConsistentHashBalancer) AddEndpoint(ep interface{}) {
 	sort.Slice(c.sortedKeys, func(i, j int) bool { return c.sortedKeys[i] < c.sortedKeys[j] })
 }
 func (c *ConsistentHashBalancer) Select(args ...interface{}) (Endpoint, error) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	if len(c.endpoints) == 0 {
 		return nil, ErrNoEndpoint
 	}
@@ -82,16 +81,5 @@ func (c *ConsistentHashBalancer) RemoveEndpoint(endpoint Endpoint) {
 	}
 }
 func (c *ConsistentHashBalancer) Name() string {
-	return "ConsistentHash"
-}
-
-func (c *ConsistentHashBalancer) Close() error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	for _, endpoint := range c.endpoints {
-		if err:= endpoint.Close();err!=nil{
-			return err
-		}
-	}
-	return nil
+	return string(ConsistentHashBalanceType)
 }

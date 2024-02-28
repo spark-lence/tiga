@@ -1,7 +1,6 @@
 package loadbalance
 
 import (
-	"reflect"
 	"sync"
 )
 
@@ -20,30 +19,25 @@ type WeightEndpoint interface {
 // 在当前节点集中选取最大权重值的节点作为命中节点
 // 命中节点的当前权重值减去总权重值作为其新权重值，其他节点保持不变
 type WeightedRoundRobinBalance struct {
-	curIndex  int
-	endpoints []Endpoint
-	lock      sync.Mutex // 用于确保并发安全
+	curIndex int
+	// endpoints []Endpoint
+	// lock      sync.Mutex // 用于确保并发安全
+	*BaseLoadBalance
 }
 
 func NewWeightedRoundRobinBalance(endpoints []Endpoint) LoadBalance {
 	return &WeightedRoundRobinBalance{
-		endpoints: endpoints,
-		curIndex:  0,
-		lock:      sync.Mutex{},
+		curIndex: 0,
+		BaseLoadBalance: &BaseLoadBalance{
+			endpoints: endpoints,
+			lock:      sync.RWMutex{},
+		},
 	}
-}
-func (r *WeightedRoundRobinBalance) GetEndpoints() []Endpoint {
-	return r.endpoints
-}
-func (r *WeightedRoundRobinBalance) AddEndpoint(endpoint interface{}) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	r.endpoints = append(r.endpoints, endpoint.(WeightEndpoint))
 }
 
 func (r *WeightedRoundRobinBalance) Select(args ...interface{}) (Endpoint, error) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+	r.lock.RLock()
+	defer r.lock.RUnlock()
 	max, err := r.max()
 	if err != nil {
 		return nil, err
@@ -85,28 +79,6 @@ func (r *WeightedRoundRobinBalance) addWeight() {
 	}
 }
 
-func (r *WeightedRoundRobinBalance) RemoveEndpoint(endpoint Endpoint) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	for i, ep := range r.endpoints {
-		if reflect.DeepEqual(ep, endpoint){
-			r.endpoints = append(r.endpoints[:i], r.endpoints[i+1:]...)
-			return
-		}
-	}
-}
-
 func (r *WeightedRoundRobinBalance) Name() string {
-	return "WeightedRoundRobin"
-}
-
-func (r *WeightedRoundRobinBalance) Close() error {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	for _, endpoint := range r.endpoints {
-		if err:=endpoint.Close();err!=nil{
-			return err
-		}
-	}
-	return nil
+	return string(WRRBalanceType)
 }

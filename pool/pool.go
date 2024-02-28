@@ -3,7 +3,7 @@ package pool
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,18 +35,20 @@ type Connection interface {
 	Close() error
 	Validate() bool
 	ConnInstance() Conn
+	IsUsing() bool
+	InUsed(bool)
 }
 type Pool interface {
 	// NewConn(context.Context) (Connection, error)
 	CloseConn(Connection) error
 
 	Get(context.Context) (Connection, error)
-	Put(context.Context, Connection)
-	Remove(context.Context, Connection, error)
+	Release(context.Context, Connection)
+	Remove(context.Context, Connection, error) error
 
 	Len() int
 	IdleLen() int
-	Stats() *Stats
+	Stats() Stats
 
 	Close() error
 }
@@ -89,6 +91,8 @@ type ConnPool struct {
 	stats *StatsImpl
 
 	_closed uint32 // atomic
+
+	connCreator *sync.Pool
 }
 
 // WithPoolSize 设置连接池的大小
@@ -158,7 +162,13 @@ func NewPoolOptions(Dialer func(context.Context) (Connection, error), opts ...Po
 	return options
 
 }
-func NewConnPool(opt *PoolOptions) *ConnPool {
+
+type newConnStats struct {
+	conn Connection
+	err  error
+}
+
+func NewConnPool(opt *PoolOptions) Pool {
 	p := &ConnPool{
 		cfg: opt,
 
@@ -166,11 +176,20 @@ func NewConnPool(opt *PoolOptions) *ConnPool {
 		conns:     make([]Connection, 0, opt.PoolSize),
 		idleConns: make([]Connection, 0, opt.PoolSize),
 		stats:     &StatsImpl{},
+		connCreator: &sync.Pool{
+			New: func() interface{} {
+				conn, err := opt.Dialer(context.Background())
+				if err != nil {
+					return err
+				}
+				return conn
+			},
+		},
 	}
 
 	p.connsMu.Lock()
 	p.checkMinIdleConns()
-	p.connsMu.Unlock()
+	defer p.connsMu.Unlock()
 
 	return p
 }
@@ -227,29 +246,23 @@ func (p *ConnPool) addIdleConn() error {
 	return nil
 }
 
-// func (p *ConnPool) NewConn(ctx context.Context) (Connection, error) {
-// 	return p.newConn(ctx)
-// }
-
 func (p *ConnPool) newConn(ctx context.Context) (Connection, error) {
 	if p.closed() {
 		return nil, ErrClosed
 	}
 
 	p.connsMu.Lock()
+	defer p.connsMu.Unlock()
+	// 连接池已经满了
 	if p.cfg.MaxActiveConns > 0 && p.poolSize >= p.cfg.MaxActiveConns {
-		p.connsMu.Unlock()
 		return nil, ErrPoolExhausted
 	}
-	p.connsMu.Unlock()
 
 	cn, err := p.dialConn(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	p.connsMu.Lock()
-	defer p.connsMu.Unlock()
 	// 连接池已经满了
 	if p.cfg.MaxActiveConns > 0 && p.poolSize >= p.cfg.MaxActiveConns {
 		_ = cn.Close()
@@ -258,18 +271,17 @@ func (p *ConnPool) newConn(ctx context.Context) (Connection, error) {
 
 	p.conns = append(p.conns, cn)
 	p.poolSize++
-	// if pooled {
-	// 	// If pool is full remove the cn on next Put.
-	// 	if p.poolSize >= p.cfg.PoolSize {
-	// 		cn.pooled = false
-	// 	} else {
-	// 		p.poolSize++
-	// 	}
-	// }
 
 	return cn, nil
 }
-
+func (p *ConnPool) dialer() (Connection, error) {
+	//  newConn:=p.connCreator.Get()
+	//  if err,ok:=newConn.(error);ok{
+	//  	return nil,err
+	//  }
+	//  return newConn.(Connection),nil
+	return p.cfg.Dialer(context.Background())
+}
 func (p *ConnPool) dialConn(ctx context.Context) (Connection, error) {
 	if p.closed() {
 		return nil, ErrClosed
@@ -279,7 +291,7 @@ func (p *ConnPool) dialConn(ctx context.Context) (Connection, error) {
 		return nil, p.getLastDialError()
 	}
 	// 构建新的连接
-	netConn, err := p.cfg.Dialer(ctx)
+	netConn, err := p.dialer()
 	if err != nil {
 		p.setLastDialError(err)
 		if atomic.AddUint32(&p.dialErrorsNum, 1) == uint32(p.cfg.PoolSize) {
@@ -288,8 +300,6 @@ func (p *ConnPool) dialConn(ctx context.Context) (Connection, error) {
 		return nil, err
 	}
 
-	// cn := NewConn(netConn)
-	// cn.pooled = pooled
 	return netConn, nil
 }
 
@@ -299,7 +309,7 @@ func (p *ConnPool) tryDial() {
 			return
 		}
 
-		conn, err := p.cfg.Dialer(context.Background())
+		conn, err := p.dialer()
 		if err != nil {
 			p.setLastDialError(err)
 			time.Sleep(time.Second)
@@ -337,7 +347,7 @@ func (p *ConnPool) Get(ctx context.Context) (Connection, error) {
 	for {
 		p.connsMu.Lock()
 		cn, err := p.popIdle()
-		p.connsMu.Unlock()
+		defer p.connsMu.Unlock()
 
 		if err != nil {
 			p.freeTurn()
@@ -362,6 +372,7 @@ func (p *ConnPool) Get(ctx context.Context) (Connection, error) {
 			}
 		}
 		atomic.AddInt32(&p.stats.InUsedConns, 1)
+		cn.InUsed(true)
 		return cn, nil
 	}
 
@@ -373,7 +384,7 @@ func (p *ConnPool) Get(ctx context.Context) (Connection, error) {
 		return nil, err
 	}
 	atomic.AddInt32(&p.stats.InUsedConns, 1)
-
+	newcn.InUsed(true)
 	return newcn, nil
 }
 
@@ -456,7 +467,8 @@ func (p *ConnPool) Release(ctx context.Context, cn Connection) {
 	}()
 	if !cn.Validate() {
 		atomic.AddUint32(&p.stats.InvalidConns, 1)
-		p.Remove(ctx, cn, ErrBadConn)
+		cn.InUsed(false)
+		_ = p.Remove(ctx, cn, ErrBadConn)
 		return
 	}
 
@@ -469,35 +481,45 @@ func (p *ConnPool) Release(ctx context.Context, cn Connection) {
 		p.idleConnsLen++
 	} else {
 		// 如果空闲连接的数量已经达到了最大空闲连接数，就关闭这个连接
-		log.Printf("max idle conns reached")
 		p.removeConn(cn)
 		shouldCloseConn = true
 	}
-
-	p.connsMu.Unlock()
+	defer p.connsMu.Unlock()
 
 	p.freeTurn()
 
 	if shouldCloseConn {
 		_ = p.closeConn(cn)
 	}
+	cn.InUsed(false)
 }
 
-func (p *ConnPool) Remove(_ context.Context, cn Connection, reason error) {
-	p.removeConnWithLock(cn)
+func (p *ConnPool) Remove(_ context.Context, cn Connection, reason error) error {
+	err := p.removeConnWithLock(cn)
+	if err != nil {
+		return err
+	}
 	p.freeTurn()
-	_ = p.closeConn(cn)
-}
-
-func (p *ConnPool) CloseConn(cn Connection) error {
-	p.removeConnWithLock(cn)
 	return p.closeConn(cn)
 }
 
-func (p *ConnPool) removeConnWithLock(cn Connection) {
+func (p *ConnPool) CloseConn(cn Connection) error {
+
+	err := p.removeConnWithLock(cn)
+	if err != nil {
+		return err
+	}
+	return p.closeConn(cn)
+}
+
+func (p *ConnPool) removeConnWithLock(cn Connection) error {
 	p.connsMu.Lock()
 	defer p.connsMu.Unlock()
+	if cn.IsUsing() {
+		return fmt.Errorf("connection is using, can't close")
+	}
 	p.removeConn(cn)
+	return nil
 }
 
 // removeConn 从连接池中移除一个连接
@@ -505,10 +527,8 @@ func (p *ConnPool) removeConn(cn Connection) {
 	for i, c := range p.conns {
 		if c == cn {
 			p.conns = append(p.conns[:i], p.conns[i+1:]...)
-			// if cn.pooled {
 			p.poolSize--
 			p.checkMinIdleConns()
-			// }
 			break
 		}
 	}
@@ -517,6 +537,11 @@ func (p *ConnPool) removeConn(cn Connection) {
 
 // CloseConn 关闭连接
 func (p *ConnPool) closeConn(cn Connection) error {
+	if cn.IsUsing() {
+		return fmt.Errorf("connection is using, can't close")
+	}
+
+	// p.connCreator.Put(cn)
 	return cn.Close()
 }
 
@@ -571,7 +596,7 @@ func (p *ConnPool) Close() error {
 	p.poolSize = 0
 	p.idleConns = nil
 	p.idleConnsLen = 0
-	p.connsMu.Unlock()
+	defer p.connsMu.Unlock()
 
 	return firstErr
 }

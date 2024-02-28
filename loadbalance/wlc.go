@@ -1,7 +1,6 @@
 package loadbalance
 
 import (
-	"reflect"
 	"sync"
 )
 
@@ -11,25 +10,23 @@ type WeightLeastConnectionsEndpoint interface {
 	Weight() int
 }
 type WeightLeastConnectionsBalance struct {
-	lock      sync.Mutex
-	endpoints []Endpoint
+	// lock      sync.Mutex
+	// endpoints []Endpoint
+	*BaseLoadBalance
 }
 
 func NewWeightLeastConnectionsBalance(endpoints []Endpoint) *WeightLeastConnectionsBalance {
 	return &WeightLeastConnectionsBalance{
-		endpoints: endpoints,
-		lock:      sync.Mutex{},
+		&BaseLoadBalance{
+			endpoints: endpoints,
+			lock:      sync.RWMutex{},
+		},
 	}
 }
 
-func (l *WeightLeastConnectionsBalance) AddEndpoint(endpoint interface{}) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	l.endpoints = append(l.endpoints, endpoint.(Endpoint))
-}
 func (l *WeightLeastConnectionsBalance) Select(_ ...interface{}) (Endpoint, error) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
+	l.lock.RLock()
+	defer l.lock.RUnlock()
 	if len(l.endpoints) == 0 {
 		return nil, ErrNoEndpoint
 	}
@@ -48,31 +45,6 @@ func (l *WeightLeastConnectionsBalance) Select(_ ...interface{}) (Endpoint, erro
 	return min, nil
 }
 
-func (r *WeightLeastConnectionsBalance) Close() error {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	for _, endpoint := range r.endpoints {
-		if err := endpoint.Close(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (r *WeightLeastConnectionsBalance) GetEndpoints() []Endpoint {
-	return r.endpoints
-}
 func (r *WeightLeastConnectionsBalance) Name() string {
 	return string(WLCBalanceType)
-}
-
-func (r *WeightLeastConnectionsBalance) RemoveEndpoint(endpoint Endpoint) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	for i, ep := range r.endpoints {
-		if reflect.DeepEqual(ep, endpoint) {
-			r.endpoints = append(r.endpoints[:i], r.endpoints[i+1:]...)
-			return
-		}
-	}
 }

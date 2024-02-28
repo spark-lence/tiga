@@ -21,6 +21,7 @@ type ConnectionImpl struct {
 	connMaxIdleTime time.Duration
 	isClosed        bool
 	mu              sync.Mutex
+	inUsed		   bool
 
 	// 连接的最大空闲时间，超过这个时间的连接将会关闭
 }
@@ -32,20 +33,28 @@ func NewConnectionImpl(conn Conn, maxLifetime, connMaxIdleTime time.Duration) *C
 		usedAt:          time.Now(),
 		maxLifetime:     maxLifetime,
 		connMaxIdleTime: connMaxIdleTime,
+		inUsed: 		false,
 	}
 }
 
 func (c *ConnectionImpl) Close() error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.isClosed {
-		c.mu.Unlock()
 		return nil
 	}
-	defer c.mu.Unlock()
 	c.isClosed = true
 	return c.conn.Close()
 }
+func (c *ConnectionImpl) IsUsing() bool {
+	return c.inUsed
+}
+func (c *ConnectionImpl) InUsed(inUsed bool) {
+	c.inUsed = inUsed
+}
 func (c *ConnectionImpl) ConnInstance() Conn {
+
 	return c.conn
 }
 func (c *ConnectionImpl) Validate() bool {
@@ -66,6 +75,7 @@ func ConnUseAt(conn Connection) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.usedAt = time.Now()
+	c.inUsed = true
 	// log.Printf("conn is used at:%v\n", c.usedAt)
 	return nil
 }

@@ -75,7 +75,7 @@ func TestPool(t *testing.T) {
 		elapsedChan := make(chan float64, 10)
 		IdleConnsChan := make(chan uint32, 10)
 		connChanCount := make(chan uint32, 10)
-		for i := 0; i < 20; i++ {
+		for i := 0; i < 30; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

@@ -147,22 +147,26 @@ func (r *RedisDao) BFScan(ctx context.Context, key string, iterator int64) ([]by
 	return r.StringToBytes(val.Data), val.Iter, nil
 
 }
-// func(r *RedisDao)BFInfo(ctx context.Context, key string) (map[string]int64, error){
-// 	result := r.client.BFInfo(ctx, key)
-// 	err := result.Err()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	val := result.Val()
-// 	return val.ItemsInserted,nil
-// }
-func (r *RedisDao)BatchSetBit(ctx context.Context, key string, values []uint) redis.Pipeliner{
+
+//	func(r *RedisDao)BFInfo(ctx context.Context, key string) (map[string]int64, error){
+//		result := r.client.BFInfo(ctx, key)
+//		err := result.Err()
+//		if err != nil {
+//			return nil, err
+//		}
+//		val := result.Val()
+//		return val.ItemsInserted,nil
+//	}
+func (r *RedisDao) BatchSetBit(ctx context.Context, key string, values []uint) redis.Pipeliner {
 	pipeline := r.client.TxPipeline()
 	for _, value := range values {
 		pipeline.SetBit(ctx, key, int64(value), 1)
 	}
 	return pipeline
 
+}
+func (r *RedisDao) GetClient() *redis.Client {
+	return r.client
 }
 func (r *RedisDao) StringToBytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(

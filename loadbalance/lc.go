@@ -1,7 +1,6 @@
 package loadbalance
 
 import (
-	"reflect"
 	"sync"
 )
 
@@ -10,30 +9,25 @@ type LeastConnectionsEndpoint interface {
 	ActivateConnections() int
 	InactiveConnections() int
 }
+
 // LeastConnectionsBalance 最小连接数负载均衡
 type LeastConnectionsBalance struct {
-	lock      sync.Mutex
-	endpoints []Endpoint
+	*BaseLoadBalance
 }
+
 // NewLeastConnectionsBalance 创建一个最小连接数负载均衡器
 func NewLeastConnectionsBalance(endpoints []Endpoint) LoadBalance {
 	return &LeastConnectionsBalance{
-		endpoints: endpoints,
-		lock:      sync.Mutex{},
+		&BaseLoadBalance{
+			endpoints: endpoints,
+			lock:      sync.RWMutex{},
+		},
 	}
 }
-func (l *LeastConnectionsBalance) AddEndpoint(endpoint interface{}) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	l.endpoints = append(l.endpoints, endpoint.(LeastConnectionsEndpoint))
-}
-func (l *LeastConnectionsBalance) GetEndpoints() []Endpoint {
-	return l.endpoints
 
-}
 func (l *LeastConnectionsBalance) Select(args ...interface{}) (Endpoint, error) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
+	l.lock.RLock()
+	defer l.lock.RUnlock()
 	if len(l.endpoints) == 0 {
 		return nil, ErrNoEndpoint
 	}
@@ -51,28 +45,6 @@ func (l *LeastConnectionsBalance) Select(args ...interface{}) (Endpoint, error) 
 	return min, nil
 }
 
-func (l *LeastConnectionsBalance) RemoveEndpoint(endpoint Endpoint) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	for i, ep := range l.endpoints {
-		if reflect.DeepEqual(ep, endpoint){
-			l.endpoints = append(l.endpoints[:i], l.endpoints[i+1:]...)
-			return
-		}
-	}
-}
-
 func (l *LeastConnectionsBalance) Name() string {
-	return "LeastConnections"
-}
-
-func (l *LeastConnectionsBalance) Close() error {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-	for _, endpoint := range l.endpoints {
-		if err:=endpoint.Close();err!=nil{
-			return err
-		}
-	}
-	return nil
+	return string(LCBalanceType)
 }
