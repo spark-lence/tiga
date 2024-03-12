@@ -101,6 +101,16 @@ func (r *RedisDao) Get(ctx context.Context, key string) string {
 
 	return val
 }
+
+func (r *RedisDao) GetBytes(ctx context.Context, key string) []byte {
+	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
+	val, err := r.client.Get(ctx, key).Bytes()
+	if err != nil {
+		return nil
+	}
+
+	return val
+}
 func (r *RedisDao) GetInt(ctx context.Context, key string) (int, error) {
 	key = fmt.Sprintf("%s:%s", key, r.config.GetEnv())
 	val, err := r.client.Get(ctx, key).Int()

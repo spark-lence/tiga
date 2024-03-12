@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -206,4 +207,13 @@ func ArrayContainsString(arr []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func IntToBytes(number int) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.BigEndian, number)
+	if err != nil {
+		return nil, fmt.Errorf("binary.Write failed:%w", err)
+	}
+	return buf.Bytes(), nil
 }
