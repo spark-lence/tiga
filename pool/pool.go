@@ -171,7 +171,7 @@ type newConnStats struct {
 func NewConnPool(opt *PoolOptions) Pool {
 	p := &ConnPool{
 		cfg: opt,
-
+		// poolSize:  opt.PoolSize,
 		queue:     make(chan struct{}, opt.PoolSize),
 		conns:     make([]Connection, 0, opt.PoolSize),
 		idleConns: make([]Connection, 0, opt.PoolSize),
@@ -205,8 +205,8 @@ func (p *ConnPool) checkMinIdleConns() {
 	for p.poolSize < p.cfg.PoolSize && p.idleConnsLen < p.cfg.MinIdleConns {
 		select {
 		case p.queue <- struct{}{}:
-			p.poolSize++
-			p.idleConnsLen++
+			atomic.AddInt32(&p.poolSize, 1)
+			atomic.AddInt32(&p.idleConnsLen, 1)
 
 			go func() {
 				err := p.addIdleConn()
@@ -416,6 +416,7 @@ func (p *ConnPool) waitTurn(ctx context.Context) error {
 		if !timer.Stop() {
 			<-timer.C
 		}
+		timer.Reset(p.cfg.PoolTimeout)
 		timers.Put(timer)
 		return ctx.Err()
 	// 排队成功，可以获取到连接
@@ -423,9 +424,12 @@ func (p *ConnPool) waitTurn(ctx context.Context) error {
 		if !timer.Stop() {
 			<-timer.C
 		}
+		timer.Reset(p.cfg.PoolTimeout)
 		timers.Put(timer)
 		return nil
 	case <-timer.C:
+		timer.Reset(p.cfg.PoolTimeout)
+
 		timers.Put(timer)
 		atomic.AddUint32(&p.stats.Timeouts, 1)
 		return ErrPoolTimeout
@@ -466,6 +470,8 @@ func (p *ConnPool) popIdle() (Connection, error) {
 func (p *ConnPool) Release(ctx context.Context, cn Connection) {
 	defer func() {
 		atomic.AddInt32(&p.stats.InUsedConns, -1)
+		p.freeTurn()
+
 	}()
 	if !cn.Validate() {
 		atomic.AddUint32(&p.stats.InvalidConns, 1)
@@ -487,8 +493,6 @@ func (p *ConnPool) Release(ctx context.Context, cn Connection) {
 		shouldCloseConn = true
 	}
 	defer p.connsMu.Unlock()
-
-	p.freeTurn()
 
 	if shouldCloseConn {
 		_ = p.closeConn(cn)
