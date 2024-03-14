@@ -3,37 +3,34 @@ module github.com/spark-lence/tiga
 go 1.20
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/cockroachdb/errors v1.11.1
 	github.com/colinmarc/hdfs/v2 v2.4.0
+	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/spf13/viper v1.18.1
 	github.com/thinkeridea/go-extend v1.3.2
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	go.etcd.io/etcd/api/v3 v3.5.11
 	go.etcd.io/etcd/client/v3 v3.5.11
 	google.golang.org/protobuf v1.31.0
-	gorm.io/datatypes v1.2.0
 	gorm.io/driver/mysql v1.5.2
 	gorm.io/gorm v1.25.5
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/aviddiviner/go-murmur v0.0.0-20150519214947-b9740d71e571 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/cockroachdb/errors v1.11.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/getsentry/sentry-go v0.18.0 // indirect
-	github.com/go-redis/redismock/v9 v9.2.0 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
-	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect

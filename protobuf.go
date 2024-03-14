@@ -157,7 +157,7 @@ func MakeMapToProtobuf(data map[string]string, pb protoreflect.ProtoMessage) err
 }
 func MakeAPIResponse(code int32, data protoreflect.ProtoMessage, message string, API string) (protoreflect.ProtoMessage, error) {
 	msgType, err := protoregistry.GlobalTypes.FindMessageByName(protoreflect.FullName(API))
-	if err != nil{
+	if err != nil {
 		return nil, fmt.Errorf("Failed to find message type: %s,%s", err.Error(), API)
 	}
 	rsp, err := proto.Marshal(data)

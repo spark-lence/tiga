@@ -47,7 +47,7 @@ type Pool interface {
 	Remove(context.Context, Connection, error) error
 
 	Len() int
-	IdleLen() int
+	IdleLen() int32
 	Stats() Stats
 
 	Close() error
@@ -58,11 +58,11 @@ type PoolOptions struct {
 	Dialer             func(context.Context) (Connection, error)
 	ConnectionUsedHook []ConnUsedHook
 	PoolFIFO           bool
-	PoolSize           int
+	PoolSize           int32
 	PoolTimeout        time.Duration
-	MinIdleConns       int
-	MaxIdleConns       int
-	MaxActiveConns     int
+	MinIdleConns       int32
+	MaxIdleConns       int32
+	MaxActiveConns     int32
 }
 type PoolOptionsBuildOption func(*PoolOptions)
 
@@ -84,9 +84,9 @@ type ConnPool struct {
 	// 存储空闲的连接
 	idleConns []Connection
 	// 连接池的大小
-	poolSize int
+	poolSize int32
 	// 空闲连接的数量
-	idleConnsLen int
+	idleConnsLen int32
 
 	stats *StatsImpl
 
@@ -96,7 +96,7 @@ type ConnPool struct {
 }
 
 // WithPoolSize 设置连接池的大小
-func WithPoolSize(size int) PoolOptionsBuildOption {
+func WithPoolSize(size int32) PoolOptionsBuildOption {
 	return func(o *PoolOptions) {
 		o.PoolSize = size
 	}
@@ -110,21 +110,21 @@ func WithPoolTimeout(timeout time.Duration) PoolOptionsBuildOption {
 }
 
 // WithMinIdleConns 设置连接池的最小空闲连接数
-func WithMinIdleConns(minIdleConns int) PoolOptionsBuildOption {
+func WithMinIdleConns(minIdleConns int32) PoolOptionsBuildOption {
 	return func(o *PoolOptions) {
 		o.MinIdleConns = minIdleConns
 	}
 }
 
 // WithMaxIdleConns 设置连接池的最大空闲连接数
-func WithMaxIdleConns(maxIdleConns int) PoolOptionsBuildOption {
+func WithMaxIdleConns(maxIdleConns int32) PoolOptionsBuildOption {
 	return func(o *PoolOptions) {
 		o.MaxIdleConns = maxIdleConns
 	}
 }
 
 // WithMaxActiveConns 设置连接池的最大活跃连接数
-func WithMaxActiveConns(maxActiveConns int) PoolOptionsBuildOption {
+func WithMaxActiveConns(maxActiveConns int32) PoolOptionsBuildOption {
 	return func(o *PoolOptions) {
 		o.MaxActiveConns = maxActiveConns
 	}
@@ -187,9 +187,9 @@ func NewConnPool(opt *PoolOptions) Pool {
 		},
 	}
 
-	p.connsMu.Lock()
+	// p.connsMu.Lock()
 	p.checkMinIdleConns()
-	defer p.connsMu.Unlock()
+	// defer p.connsMu.Unlock()
 
 	return p
 }
@@ -211,10 +211,12 @@ func (p *ConnPool) checkMinIdleConns() {
 			go func() {
 				err := p.addIdleConn()
 				if err != nil && err != ErrClosed {
-					p.connsMu.Lock()
-					p.poolSize--
-					p.idleConnsLen--
-					p.connsMu.Unlock()
+					// p.connsMu.Lock()
+					atomic.AddInt32(&p.poolSize, -1)
+					atomic.AddInt32(&p.idleConnsLen, -1)
+					// p.poolSize--
+					// p.idleConnsLen--
+					// p.connsMu.Unlock()
 				}
 
 				p.freeTurn()
@@ -347,7 +349,7 @@ func (p *ConnPool) Get(ctx context.Context) (Connection, error) {
 	for {
 		p.connsMu.Lock()
 		cn, err := p.popIdle()
-		defer p.connsMu.Unlock()
+		p.connsMu.Unlock()
 
 		if err != nil {
 			p.freeTurn()
@@ -455,7 +457,7 @@ func (p *ConnPool) popIdle() (Connection, error) {
 		cn = p.idleConns[idx]
 		p.idleConns = p.idleConns[:idx]
 	}
-	p.idleConnsLen--
+	atomic.AddInt32(&p.idleConnsLen, -1)
 	p.checkMinIdleConns()
 	return cn, nil
 }
@@ -527,7 +529,7 @@ func (p *ConnPool) removeConn(cn Connection) {
 	for i, c := range p.conns {
 		if c == cn {
 			p.conns = append(p.conns[:i], p.conns[i+1:]...)
-			p.poolSize--
+			atomic.AddInt32(&p.poolSize, -1)
 			p.checkMinIdleConns()
 			break
 		}
@@ -554,7 +556,7 @@ func (p *ConnPool) Len() int {
 }
 
 // IdleLen returns number of idle connections.
-func (p *ConnPool) IdleLen() int {
+func (p *ConnPool) IdleLen() int32 {
 	p.connsMu.Lock()
 	n := p.idleConnsLen
 	p.connsMu.Unlock()
