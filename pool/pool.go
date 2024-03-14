@@ -416,7 +416,6 @@ func (p *ConnPool) waitTurn(ctx context.Context) error {
 		if !timer.Stop() {
 			<-timer.C
 		}
-		timer.Reset(p.cfg.PoolTimeout)
 		timers.Put(timer)
 		return ctx.Err()
 	// 排队成功，可以获取到连接
@@ -424,11 +423,9 @@ func (p *ConnPool) waitTurn(ctx context.Context) error {
 		if !timer.Stop() {
 			<-timer.C
 		}
-		timer.Reset(p.cfg.PoolTimeout)
 		timers.Put(timer)
 		return nil
 	case <-timer.C:
-		timer.Reset(p.cfg.PoolTimeout)
 
 		timers.Put(timer)
 		atomic.AddUint32(&p.stats.Timeouts, 1)
