@@ -45,7 +45,7 @@ func (c Configuration) GetValue(key string) (interface{}, error) {
 	return value, nil
 }
 func (c Configuration) GetString(key string) string {
-	if !strings.Contains(key, c.env) {
+	if !strings.Contains(key, c.env)&&!strings.HasPrefix(key,"common") {
 		key = fmt.Sprintf("%s.%s", c.env, key)
 	}
 	value := c.Get(key)

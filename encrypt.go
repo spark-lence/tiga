@@ -111,9 +111,6 @@ func EncryptStructAES(key []byte, data interface{}, ivKey string) error {
 		val := field.String()
 		// 检查字段是否有特定的标签并且是字符串类型
 		if processTag, ok := typeField.Tag.Lookup("aes"); ok && processTag == "true" && field.Kind() == reflect.String {
-			// 获取字段的值
-			// val := field.String()
-			// fmt.Printf("encrypt %s,value %s", typeField.Name, val)
 			val, err := EncryptAES(key, val, ivKey)
 			if err != nil {
 				return fmt.Errorf("encrypt %s error,%w", typeField.Name, err)

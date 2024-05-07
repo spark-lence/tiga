@@ -149,7 +149,7 @@ func NewPoolOptions(Dialer func(context.Context) (Connection, error), opts ...Po
 	options := &PoolOptions{
 		ConnectionUsedHook: make([]ConnUsedHook, 0),
 		Dialer:             Dialer,
-		PoolSize:           10,
+		PoolSize:           20,
 		PoolTimeout:        6 * time.Second,
 		MinIdleConns:       3,
 		MaxIdleConns:       6,
@@ -211,12 +211,10 @@ func (p *ConnPool) checkMinIdleConns() {
 			go func() {
 				err := p.addIdleConn()
 				if err != nil && err != ErrClosed {
-					// p.connsMu.Lock()
+
 					atomic.AddInt32(&p.poolSize, -1)
 					atomic.AddInt32(&p.idleConnsLen, -1)
-					// p.poolSize--
-					// p.idleConnsLen--
-					// p.connsMu.Unlock()
+	
 				}
 
 				p.freeTurn()

@@ -63,10 +63,8 @@ func New(srvErr error, svrMsg string, opts ...ErrorOption) *Errors {
 	err := &Errors{
 		errWrap: errors.Wrap(srvErr, svrMsg),
 		srvErr:  &SrvError{
-
 		},
 	}
-	fmt.Println(err.errWrap, srvErr)
 	for _, opt := range opts {
 		opt(err)
 	}

@@ -81,7 +81,7 @@ func Unzip(file *os.File, destDir string) error {
 }
 
 // 解压缩tar.gz文件
-func UnTarGz(file *os.File, destDir string) error {
+func UnTarGz(file *os.File, destDir string)(error) {
 	gzReader, err := gzip.NewReader(file)
 	if err != nil {
 		return err

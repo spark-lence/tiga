@@ -56,12 +56,26 @@ func NewMongodbDao(config *Configuration) *MongodbDao {
 	}
 
 }
+func NewMongoMocker(db *mongo.Database, config *Configuration) *MongodbDao {
+	return &MongodbDao{
+		db:     db,
+		config: config,
+	}
 
-func (m MongodbDao) Upsert(collection string, filter interface{}, update primitive.M) error {
+}
+func (m MongodbDao) Upsert(ctx context.Context, collection string, filter interface{}, update primitive.M) error {
 	c := m.db.Collection(collection)
 	opts := options.Update().SetUpsert(true)
-	_, err := c.UpdateOne(context.TODO(), filter, update, opts)
+	_, err := c.UpdateOne(ctx, filter, update, opts)
 	if err != nil && !strings.Contains(err.Error(), "no documents in result") {
+		return err
+	}
+	return nil
+}
+func (m MongodbDao) Insert(ctx context.Context, collection string, data interface{}) error {
+	c := m.db.Collection(collection)
+	_, err := c.InsertOne(ctx, data)
+	if err != nil {
 		return err
 	}
 	return nil
@@ -108,4 +122,23 @@ func (m MongodbDao) AggregateQuery(collection string, pipeline []bson.D) ([]bson
 		return nil, err
 	}
 	return results, nil
+}
+
+func (m MongodbDao) Find(ctx context.Context, collection string, filter interface{}, project interface{}) ([]map[string]interface{}, error) {
+	var data []map[string]interface{}
+	c := m.db.Collection(collection)
+	r, err := c.Find(ctx, filter, options.Find().SetProjection(project))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close(ctx)
+	for r.Next(ctx) {
+		var item map[string]interface{}
+		err = r.Decode(&item)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, item)
+	}
+	return data, nil
 }

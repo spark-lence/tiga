@@ -25,6 +25,13 @@ type MySQLDao struct {
 	db *gorm.DB
 }
 
+type Pagination struct {
+	Page     int32
+	PageSize int32
+	Query    interface{}
+	Args     []interface{}
+}
+
 func NewMySQLMockDao() (*MySQLDao, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
 	if err != nil {
@@ -52,6 +59,16 @@ func NewMySQLDao(config *Configuration) *MySQLDao {
 	password := config.GetString("mysql.password")
 	database := config.GetString("mysql.database")
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, database)
+	// newLogger := logger.New(
+	// 	log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+	// 	logger.Config{
+	// 		SlowThreshold:             time.Second,   // Slow SQL threshold
+	// 		LogLevel:                  logger.Silent, // Log level
+	// 		IgnoreRecordNotFoundError: true,          // Ignore ErrRecordNotFound error for logger
+	// 		ParameterizedQueries:      true,          // Don't include params in the SQL log
+	// 		Colorful:                  false,         // Disable color
+	// 	},
+	// )
 	db, err := gorm.Open(mysql.New(mysql.Config{
 		DSN:                       dsn,   // DSN
 		DefaultStringSize:         256,   // string 类型字段的默认长度
@@ -59,8 +76,9 @@ func NewMySQLDao(config *Configuration) *MySQLDao {
 		DontSupportRenameIndex:    true,  // 重命名索引时采用删除并新建的方式，MySQL 5.7 之前的数据库和 MariaDB 不支持重命名索引
 		DontSupportRenameColumn:   true,  // 用 `change` 重命名列，MySQL 8 之前的数据库和 MariaDB 不支持重命名列
 		SkipInitializeWithVersion: false, // 根据当前 MySQL 版本自动配置
+
 	}), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		panic(err)
@@ -84,11 +102,11 @@ func (m MySQLDao) RegisterTimeSerializer() {
 func (m MySQLDao) Save(model interface{}) error {
 	return m.db.Save(model).Error
 }
-func (m MySQLDao) Create(model interface{}) error {
-	return m.db.Create(model).Error
+func (m MySQLDao) Create(ctx context.Context, model interface{}) error {
+	return m.db.WithContext(ctx).Create(model).Error
 }
-func (m MySQLDao) Update(model interface{}, value interface{}) error {
-	return m.db.Model(model).Updates(value).Error
+func (m MySQLDao) Update(ctx context.Context, model interface{}, value interface{}) error {
+	return m.db.WithContext(ctx).Model(model).Updates(value).Error
 }
 func (m MySQLDao) UpdateColumns(model interface{}, value interface{}) error {
 	return m.db.Where(model).Updates(value).Error
@@ -96,8 +114,11 @@ func (m MySQLDao) UpdateColumns(model interface{}, value interface{}) error {
 func (m MySQLDao) UpdateWithQuery(model interface{}, value interface{}, fields []string, query interface{}, args ...interface{}) error {
 	return m.db.Model(model).Where(query, args...).Select(fields).Updates(value).Error
 }
-func (m MySQLDao) UpdateSelectColumns(model interface{}, value interface{}, selectCol ...string) error {
-	return m.db.Where(model).Select(selectCol).Updates(value).Error
+func (m MySQLDao) UpdateSelectColumns(ctx context.Context, where interface{}, value interface{}, selectCol ...string) error {
+	return m.db.WithContext(ctx).Where(where).Select(selectCol).Updates(value).Error
+}
+func (m MySQLDao) Pagination(ctx context.Context, model interface{}, pagination *Pagination) error {
+	return m.db.WithContext(ctx).Where(pagination.Query, pagination.Args...).Limit(int(pagination.PageSize)).Offset(int(pagination.PageSize * (pagination.Page - 1))).Find(model).Error
 }
 func (m MySQLDao) Delete(model interface{}, conds ...interface{}) error {
 	return m.db.Delete(model, conds...).Error
@@ -113,8 +134,8 @@ func (m MySQLDao) BatchUpdates(models []interface{}, selectCol ...string) error 
 	return tx.Commit().Error
 
 }
-func (m MySQLDao) Find(model interface{}, query interface{}, args ...interface{}) error {
-	return m.db.Where(query, args...).Find(model).Error
+func (m MySQLDao) Find(ctx context.Context, model interface{}, query interface{}, args ...interface{}) error {
+	return m.db.WithContext(ctx).Where(query, args...).Find(model).Error
 }
 func (m MySQLDao) First(model interface{}, query interface{}, args ...interface{}) error {
 	return m.db.Where(query, args...).First(model).Error
