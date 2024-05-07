@@ -58,6 +58,30 @@ func (c Configuration) GetStrings(key string) []string {
 	values := c.GetStringSlice(key)
 	return values
 }
+func (c Configuration)GetStringSlice(key string) []string {
+	key =strings.TrimPrefix(key, fmt.Sprintf("%s.",c.env))
+	originKey:=key
+	if !strings.HasPrefix(key, c.env)&&!strings.HasPrefix(key,"common") {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
+	v:= c.Viper.GetStringSlice(key)
+	if len(v)==0{
+		return c.Viper.GetStringSlice(originKey)
+	}
+	return v
+}
+func (c Configuration)GetStringMap(key string)map[string]any{
+	key =strings.TrimPrefix(key, fmt.Sprintf("%s.",c.env))
+	originKey:=key
+	if !strings.HasPrefix(key, c.env)&&!strings.HasPrefix(key,"common") {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
+	v:= c.Viper.GetStringMap(key)
+	if len(v)==0{
+		return c.Viper.GetStringMap(originKey)
+	}
+	return v
+}
 func (c Configuration) GetInt(key string) int {
 	if !strings.Contains(key, c.env) {
 		key = fmt.Sprintf("%s.%s", c.env, key)
@@ -93,6 +117,19 @@ func (c Configuration) SetEnv(env string) {
 }
 func (c Configuration) GetConfigByEnv(env string, key string) interface{} {
 	return c.Get(fmt.Sprintf("%s.%s", env, key))
+}
+func (c Configuration)Get(key string) interface{} {
+	key =strings.TrimPrefix(key, fmt.Sprintf("%s.",c.env))
+	originKey:=key
+	if !strings.HasPrefix(key, c.env)&&!strings.HasPrefix(key,"common") {
+		key = fmt.Sprintf("%s.%s", c.env, key)
+	}
+	v:= c.Viper.Get(key)
+	if v==nil{
+		return c.Viper.Get(originKey)
+	}
+	return v
+
 }
 func (c Configuration) SetConfig(key string, val string, env string) {
 	c.Set(fmt.Sprintf("%s.%s", env, key), val)
