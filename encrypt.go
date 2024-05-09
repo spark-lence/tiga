@@ -137,7 +137,7 @@ func DecryptStructAES(key []byte, data interface{}, ivKey string) error {
 			}
 			val, err := DecryptAES(key, val, ivKey)
 			if err != nil {
-				return fmt.Errorf("encrypt %s error,%w", typeField.Name, err)
+				return fmt.Errorf("decrypt %s error,%w", typeField.Name, err)
 			}
 			field.SetString(val)
 		}

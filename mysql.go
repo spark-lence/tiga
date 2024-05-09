@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -137,8 +138,8 @@ func (m MySQLDao) BatchUpdates(models []interface{}, selectCol ...string) error 
 func (m MySQLDao) Find(ctx context.Context, model interface{}, query interface{}, args ...interface{}) error {
 	return m.db.WithContext(ctx).Where(query, args...).Find(model).Error
 }
-func (m MySQLDao) First(model interface{}, query interface{}, args ...interface{}) error {
-	return m.db.Where(query, args...).First(model).Error
+func (m MySQLDao) First(ctx context.Context, model interface{}, query interface{}, args ...interface{}) error {
+	return m.db.WithContext(ctx).Where(query, args...).First(model).Error
 }
 func (m MySQLDao) FirstWithMuiltQuery(model interface{}, query *gorm.DB) error {
 	return query.First(model).Error
@@ -149,7 +150,54 @@ func (m MySQLDao) Last(model interface{}, query interface{}, args ...interface{}
 func (m MySQLDao) FindAll(model interface{}, query interface{}, args ...interface{}) error {
 	return m.db.Where(query, args...).Find(model).Error
 }
+func (m MySQLDao) getRenames(model interface{}) (map[string]string, error) {
+	// 获取结构体类型
+	modelType := reflect.TypeOf(model)
+	// modelVal := reflect.ValueOf(model)
+	if modelType.Kind() == reflect.Ptr {
+		modelType = modelType.Elem()
+		// modelVal = modelVal.Elem()
+
+	}
+	if modelType.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("%s not a struct type", modelType.Kind().String())
+	}
+	names := make(map[string]string)
+
+	// 遍历结构体的字段
+	for i := 0; i < modelType.NumField(); i++ {
+		field := modelType.Field(i)
+		// 检查字段名称是否匹配
+		if oldName := field.Tag.Get("old_column"); oldName != "" {
+			// 获取字段值
+			tag := field.Tag.Get("gorm")
+			// 	// 解析GORM标签
+			tagParts := strings.Split(tag, ";")
+			for _, part := range tagParts {
+				kv := strings.Split(part, ":")
+				if len(kv) == 2 && strings.TrimSpace(kv[0]) == "column" {
+					names[oldName] = strings.TrimSpace(kv[1])
+					// value := modelVal.Field(i).Interface()
+					// return strings.TrimSpace(kv[1]), value, nil
+				}
+			}
+		}
+
+	}
+	return names, nil
+	// return nil, fmt.Errorf("not found primary column")
+}
 func (m MySQLDao) AutoMigrate(model interface{}) error {
+	// m.db.Migrator().r
+	names, err := m.getRenames(model)
+	if err != nil {
+		return err
+	}
+	for oldName, newName := range names {
+		if err = m.db.Migrator().RenameColumn(model, oldName, newName); err != nil {
+			return fmt.Errorf("rename column %s to %s failed:%w", oldName, newName, err)
+		}
+	}
 	return m.db.AutoMigrate(model)
 }
 func (m MySQLDao) Count(model interface{}, query interface{}, args ...interface{}) (int64, error) {
