@@ -114,7 +114,7 @@ func (e EtcdDao) LeaseKeepAlive(ctx context.Context, leaseID clientv3.LeaseID) (
 	return e.client.KeepAlive(ctx, leaseID)
 }
 func (e EtcdDao) BatchOps(ctx context.Context, ops []clientv3.Op) (bool, error) {
-	txn := e.client.Txn(context.Background())
+	txn := e.client.Txn(ctx)
 	txnResp, err := txn.Then(ops...).Commit()
 	if err != nil {
 		return false, err
