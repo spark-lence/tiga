@@ -77,7 +77,7 @@ func MakeErrWithDetails(rsp protoreflect.ProtoMessage, srcErr error) error {
 	return st.Err()
 
 }
-func setFieldValueFromString(pbReflect protoreflect.Message, field protoreflect.FieldDescriptor, value string) error {
+func SetFieldValueFromString(pbReflect protoreflect.Message, field protoreflect.FieldDescriptor, value string) error {
 	// 根据字段类型进行转换
 	switch field.Kind() {
 	case protoreflect.BoolKind:
@@ -147,7 +147,7 @@ func MakeMapToProtobuf(data map[string]string, pb protoreflect.ProtoMessage) err
 		// 如果 map 中存在对应的键
 		if value, ok := data[jsonTag]; ok {
 			// 转换并设置值
-			if err := setFieldValueFromString(pbReflect, field, value); err != nil {
+			if err := SetFieldValueFromString(pbReflect, field, value); err != nil {
 				return fmt.Errorf("failed to set field '%s': %v", field.FullName(), err)
 			}
 		}
