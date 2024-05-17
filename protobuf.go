@@ -90,14 +90,22 @@ func SetFieldValueFromString(pbReflect protoreflect.Message, field protoreflect.
 		if err != nil {
 			return fmt.Errorf("type mismatch for integer field")
 		}
-		pbReflect.Set(field, protoreflect.ValueOfInt64(val))
+		if field.Kind() == protoreflect.Int32Kind {
+			pbReflect.Set(field, protoreflect.ValueOfInt32(int32(val)))
+		} else {
+			pbReflect.Set(field, protoreflect.ValueOfInt64(val))
+		}
 
 	case protoreflect.Uint32Kind, protoreflect.Uint64Kind:
 		val, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return fmt.Errorf("type mismatch for unsigned integer field")
 		}
-		pbReflect.Set(field, protoreflect.ValueOfUint64(val))
+		if field.Kind() == protoreflect.Uint32Kind {
+			pbReflect.Set(field, protoreflect.ValueOfUint32(uint32(val)))
+		} else {
+			pbReflect.Set(field, protoreflect.ValueOfUint64(val))
+		}
 	case protoreflect.StringKind:
 		pbReflect.Set(field, protoreflect.ValueOfString(value))
 	case protoreflect.BytesKind:
