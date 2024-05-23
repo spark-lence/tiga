@@ -49,7 +49,10 @@ func (c Configuration) GetString(key string) string {
 		key = fmt.Sprintf("%s.%s", c.env, key)
 	}
 	value := c.Get(key)
-	return value.(string)
+	if val,ok:=value.(string);ok&&val!=""{
+		return val
+	}
+	return ""
 }
 func (c Configuration) GetStrings(key string) []string {
 	if !strings.Contains(key, c.env) {
