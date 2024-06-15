@@ -103,9 +103,7 @@ func (c Configuration) GetInt(key string) int {
 
 }
 func (c Configuration) UnmarshalKey(key string, rawVal any, opts ...viper.DecoderConfigOption) error {
-	if !strings.Contains(key, c.env) {
-		key = fmt.Sprintf("%s.%s", c.env, key)
-	}
+
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
 func (c Configuration) GetEnv() string {

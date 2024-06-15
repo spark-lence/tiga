@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
@@ -23,7 +25,8 @@ type TimestamppbSerializer struct {
 type JSONField struct {
 }
 type MySQLDao struct {
-	db *gorm.DB
+	db  *gorm.DB
+	cfg *Configuration
 }
 
 type Pagination struct {
@@ -31,6 +34,7 @@ type Pagination struct {
 	PageSize int32
 	Query    interface{}
 	Args     []interface{}
+	Select   []string
 }
 
 func NewMySQLMockDao() (*MySQLDao, sqlmock.Sqlmock) {
@@ -57,19 +61,11 @@ func NewMySQLDao(config *Configuration) *MySQLDao {
 	host := config.GetString("mysql.host")
 	port := config.GetInt("mysql.port")
 	user := config.GetString("mysql.user")
+	prefix := config.GetString("mysql.table_prefix")
 	password := config.GetString("mysql.password")
 	database := config.GetString("mysql.database")
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, database)
-	// newLogger := logger.New(
-	// 	log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-	// 	logger.Config{
-	// 		SlowThreshold:             time.Second,   // Slow SQL threshold
-	// 		LogLevel:                  logger.Silent, // Log level
-	// 		IgnoreRecordNotFoundError: true,          // Ignore ErrRecordNotFound error for logger
-	// 		ParameterizedQueries:      true,          // Don't include params in the SQL log
-	// 		Colorful:                  false,         // Disable color
-	// 	},
-	// )
+
 	db, err := gorm.Open(mysql.New(mysql.Config{
 		DSN:                       dsn,   // DSN
 		DefaultStringSize:         256,   // string 类型字段的默认长度
@@ -80,12 +76,16 @@ func NewMySQLDao(config *Configuration) *MySQLDao {
 
 	}), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
+		NamingStrategy: schema.NamingStrategy{
+			TablePrefix: prefix, // 表名前缀，`User` 的表名应该是 `tiga_users`
+		},
 	})
 	if err != nil {
 		panic(err)
 	}
 	return &MySQLDao{
-		db: db,
+		db:  db,
+		cfg: config,
 	}
 }
 func (m MySQLDao) Close() error {
@@ -106,6 +106,35 @@ func (m MySQLDao) Save(model interface{}) error {
 func (m MySQLDao) Create(ctx context.Context, model interface{}) error {
 	return m.db.WithContext(ctx).Create(model).Error
 }
+func (m MySQLDao) Upsert(ctx context.Context, model interface{}, updateSelect ...string) error {
+
+	prefix := m.cfg.GetString("mysql.table_prefix")
+
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{TablePrefix: prefix})
+	if err != nil {
+		return err
+
+	}
+	structNames := make(map[string]string)
+	for _, field := range s.Fields {
+		structNames[field.StructField.Name] = field.DBName
+	}
+	modelType := reflect.TypeOf(model).Elem()
+	fields := make([]string, 0)
+	if len(updateSelect) > 0 {
+		fields = append(fields, updateSelect...)
+	} else {
+		for i := 0; i < modelType.NumField(); i++ {
+			field := modelType.Field(i).Name
+			if field != "CreatedAt" && modelType.Field(i).Tag.Get("gorm") != "" && modelType.Field(i).Tag.Get("gorm") != "-" { // 确保排除CreatedAt字段
+				fields = append(fields, structNames[field])
+			}
+		}
+	}
+	return m.db.Clauses(clause.OnConflict{
+		DoUpdates: clause.AssignmentColumns(fields),
+	}).Create(model).Error
+}
 func (m MySQLDao) Update(ctx context.Context, model interface{}, value interface{}) error {
 	return m.db.WithContext(ctx).Model(model).Updates(value).Error
 }
@@ -119,7 +148,11 @@ func (m MySQLDao) UpdateSelectColumns(ctx context.Context, where interface{}, va
 	return m.db.WithContext(ctx).Where(where).Select(selectCol).Updates(value).Error
 }
 func (m MySQLDao) Pagination(ctx context.Context, model interface{}, pagination *Pagination) error {
-	return m.db.WithContext(ctx).Where(pagination.Query, pagination.Args...).Limit(int(pagination.PageSize)).Offset(int(pagination.PageSize * (pagination.Page - 1))).Find(model).Error
+	base := m.db.WithContext(ctx)
+	if len(pagination.Select) > 0 {
+		base = base.Select(pagination.Select)
+	}
+	return base.Where(pagination.Query, pagination.Args...).Limit(int(pagination.PageSize)).Offset(int(pagination.PageSize * (pagination.Page - 1))).Find(model).Error
 }
 func (m MySQLDao) Delete(model interface{}, conds ...interface{}) error {
 	return m.db.Delete(model, conds...).Error

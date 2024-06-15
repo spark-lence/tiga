@@ -2,6 +2,9 @@ package tiga
 
 import (
 	"fmt"
+	"math"
+	"regexp"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -56,4 +59,24 @@ func (s *Snowflake) GenerateID() int64 {
 }
 func (s *Snowflake) GenerateIDString() string {
 	return fmt.Sprintf("%d", s.GenerateID())
+}
+func IsSnowflakeID(id string) bool {
+	// 检查字符串是否为纯数字
+	isNumeric := regexp.MustCompile(`^[0-9]+$`).MatchString
+	if !isNumeric(id) {
+		return false
+	}
+
+	// 尝试将字符串转换为64位整数
+	num, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	// 检查数字是否在 64 位整数范围内
+	if num < 0 || num > math.MaxInt64 {
+		return false
+	}
+
+	return true
 }
