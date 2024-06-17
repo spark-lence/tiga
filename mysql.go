@@ -226,10 +226,11 @@ func (m MySQLDao) AutoMigrate(model interface{}) error {
 	if err != nil {
 		return err
 	}
-	for oldName, newName := range names {
-		
-		if err = m.db.Migrator().RenameColumn(model, oldName, newName); err != nil && !strings.Contains(err.Error(),"Unknown column"){
-			return fmt.Errorf("rename column %s to %s failed:%w", oldName, newName, err)
+	if m.db.Migrator().HasTable(model) {
+		for oldName, newName := range names {
+			if err = m.db.Migrator().RenameColumn(model, oldName, newName); err != nil && !strings.Contains(err.Error(), "Unknown column") {
+				return fmt.Errorf("rename column %s to %s failed:%w", oldName, newName, err)
+			}
 		}
 	}
 	return m.db.AutoMigrate(model)
