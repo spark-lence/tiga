@@ -64,6 +64,10 @@ func NewMySQLDao(config *Configuration) *MySQLDao {
 	prefix := config.GetString("mysql.table_prefix")
 	password := config.GetString("mysql.password")
 	database := config.GetString("mysql.database")
+	err:=CreateDatabase(config)
+	if err!=nil{
+		panic(err)
+	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, database)
 
 	db, err := gorm.Open(mysql.New(mysql.Config{
@@ -98,6 +102,27 @@ func (m MySQLDao) Close() error {
 func (m MySQLDao) RegisterTimeSerializer() {
 	schema.RegisterSerializer("timepb", TimestamppbSerializer{})
 	schema.RegisterSerializer("json", JSONField{})
+
+}
+func CreateDatabase(config *Configuration) error {
+
+	host := config.GetString("mysql.host")
+	port := config.GetInt("mysql.port")
+	user := config.GetString("mysql.user")
+	password := config.GetString("mysql.password")
+	database := config.GetString("mysql.database")
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/", user, password, host, port)
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("Failed to connect to database server: %w", err)
+	}
+	defer db.Close()
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`",database))
+	if err != nil {
+		return fmt.Errorf("Failed to create database: %w", err)
+
+	}
+	return nil
 
 }
 func (m MySQLDao) Save(model interface{}) error {
@@ -222,6 +247,7 @@ func (m MySQLDao) getRenames(model interface{}) (map[string]string, error) {
 }
 func (m MySQLDao) AutoMigrate(model interface{}) error {
 	// m.db.Migrator().r
+	m.db.Migrator().CurrentDatabase()
 	names, err := m.getRenames(model)
 	if err != nil {
 		return err
@@ -355,15 +381,15 @@ func beforeCreateCallback(db *gorm.DB) {
 
 func beforeUpdateCallback(db *gorm.DB) {
 	if db.Statement.Schema != nil {
-		
+
 		for _, field := range db.Statement.Schema.Fields {
-			
-			value, _ := field.ValueOf(db.Statement.Context,db.Statement.ReflectValue)
+
+			value, _ := field.ValueOf(db.Statement.Context, db.Statement.ReflectValue)
 			if str, ok := value.(string); ok && str == "" {
-				_=db.AddError(errors.New(field.Name + " cannot be empty"))
+				_ = db.AddError(errors.New(field.Name + " cannot be empty"))
 			}
 			if num, ok := value.(int); ok && num == 0 {
-				_=db.AddError(errors.New(field.Name + " cannot be zero"))
+				_ = db.AddError(errors.New(field.Name + " cannot be zero"))
 			}
 		}
 	}
