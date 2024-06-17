@@ -336,3 +336,35 @@ func (s JSONField) Value(ctx context.Context, field *schema.Field, dst reflect.V
 	}
 	return InterfaceToBytes(fieldValue)
 }
+
+type ValidatorMySQLPlugin struct{}
+
+func (vp *ValidatorMySQLPlugin) Name() string {
+	return "ValidatorPlugin"
+}
+
+func (vp *ValidatorMySQLPlugin) Initialize(db *gorm.DB) error {
+	db.Callback().Create().Before("gorm:create").Register("validator_plugin:before_create", beforeCreateCallback)
+	db.Callback().Update().Before("gorm:update").Register("validator_plugin:before_update", beforeUpdateCallback)
+	return nil
+}
+
+func beforeCreateCallback(db *gorm.DB) {
+	// 校验逻辑同上
+}
+
+func beforeUpdateCallback(db *gorm.DB) {
+	if db.Statement.Schema != nil {
+		
+		for _, field := range db.Statement.Schema.Fields {
+			
+			value, _ := field.ValueOf(db.Statement.Context,db.Statement.ReflectValue)
+			if str, ok := value.(string); ok && str == "" {
+				_=db.AddError(errors.New(field.Name + " cannot be empty"))
+			}
+			if num, ok := value.(int); ok && num == 0 {
+				_=db.AddError(errors.New(field.Name + " cannot be zero"))
+			}
+		}
+	}
+}
