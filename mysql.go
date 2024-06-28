@@ -64,8 +64,8 @@ func NewMySQLDao(config *Configuration) *MySQLDao {
 	prefix := config.GetString("mysql.table_prefix")
 	password := config.GetString("mysql.password")
 	database := config.GetString("mysql.database")
-	err:=CreateDatabase(config)
-	if err!=nil{
+	err := CreateDatabase(config)
+	if err != nil {
 		panic(err)
 	}
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, database)
@@ -117,7 +117,7 @@ func CreateDatabase(config *Configuration) error {
 		return fmt.Errorf("Failed to connect to database server: %w", err)
 	}
 	defer db.Close()
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`",database))
+	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", database))
 	if err != nil {
 		return fmt.Errorf("Failed to create database: %w", err)
 
@@ -131,13 +131,13 @@ func (m MySQLDao) Save(model interface{}) error {
 func (m MySQLDao) Create(ctx context.Context, model interface{}) error {
 	return m.db.WithContext(ctx).Create(model).Error
 }
-func (m MySQLDao) Upsert(ctx context.Context, model interface{}, updateSelect ...string) error {
+func (m MySQLDao) Upsert(ctx context.Context, model interface{}, updateSelect ...string) (bool, error) {
 
 	prefix := m.cfg.GetString("mysql.table_prefix")
 
 	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{TablePrefix: prefix})
 	if err != nil {
-		return err
+		return false, err
 
 	}
 	structNames := make(map[string]string)
@@ -151,14 +151,20 @@ func (m MySQLDao) Upsert(ctx context.Context, model interface{}, updateSelect ..
 	} else {
 		for i := 0; i < modelType.NumField(); i++ {
 			field := modelType.Field(i).Name
-			if field != "CreatedAt" && modelType.Field(i).Tag.Get("gorm") != "" && modelType.Field(i).Tag.Get("gorm") != "-" { // 确保排除CreatedAt字段
+			primary := modelType.Field(i).Tag.Get("primary")
+			if field != "CreatedAt" && modelType.Field(i).Tag.Get("gorm") != "" && modelType.Field(i).Tag.Get("gorm") != "-" && (primary == "" || primary == "-") { // 确保排除CreatedAt字段
 				fields = append(fields, structNames[field])
 			}
 		}
 	}
-	return m.db.Clauses(clause.OnConflict{
+	result := m.db.Clauses(clause.OnConflict{
 		DoUpdates: clause.AssignmentColumns(fields),
-	}).Create(model).Error
+	}).Create(model)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	// log.Printf("result:%+v", result.RowsAffected)
+	return result.RowsAffected > 1, nil
 }
 func (m MySQLDao) Update(ctx context.Context, model interface{}, value interface{}) error {
 	return m.db.WithContext(ctx).Model(model).Updates(value).Error
