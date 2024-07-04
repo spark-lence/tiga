@@ -28,7 +28,7 @@ type MySQLDao struct {
 	db  *gorm.DB
 	cfg *Configuration
 }
-
+type TxProvider func() *gorm.DB
 type Pagination struct {
 	Page     int32
 	PageSize int32
@@ -128,10 +128,19 @@ func CreateDatabase(config *Configuration) error {
 func (m MySQLDao) Save(model interface{}) error {
 	return m.db.Save(model).Error
 }
-func (m MySQLDao) Create(ctx context.Context, model interface{}) error {
+func WithTx(tx *gorm.DB) TxProvider {
+	return func() *gorm.DB {
+		return tx
+	}
+}
+func (m MySQLDao) Create(ctx context.Context, model interface{}, tx *gorm.DB) error {
+	if tx != nil {
+		return tx.WithContext(ctx).Create(model).Error
+
+	}
 	return m.db.WithContext(ctx).Create(model).Error
 }
-func (m MySQLDao) Upsert(ctx context.Context, model interface{}, updateSelect ...string) (bool, error) {
+func (m MySQLDao) Upsert(ctx context.Context, model interface{}, tx *gorm.DB, updateSelect ...string) (bool, error) {
 
 	prefix := m.cfg.GetString("mysql.table_prefix")
 
@@ -157,7 +166,11 @@ func (m MySQLDao) Upsert(ctx context.Context, model interface{}, updateSelect ..
 			}
 		}
 	}
-	result := m.db.Clauses(clause.OnConflict{
+	db := m.db
+	if tx != nil {
+		db = tx
+	}
+	result := db.Clauses(clause.OnConflict{
 		DoUpdates: clause.AssignmentColumns(fields),
 	}).Create(model)
 	if result.Error != nil {
@@ -166,8 +179,12 @@ func (m MySQLDao) Upsert(ctx context.Context, model interface{}, updateSelect ..
 	// log.Printf("result:%+v", result.RowsAffected)
 	return result.RowsAffected > 1, nil
 }
-func (m MySQLDao) Update(ctx context.Context, model interface{}, value interface{}) error {
-	return m.db.WithContext(ctx).Model(model).Updates(value).Error
+func (m MySQLDao) Update(ctx context.Context, model interface{}, value interface{}, tx *gorm.DB) error {
+	db := m.db
+	if tx != nil {
+		db = tx
+	}
+	return db.WithContext(ctx).Model(model).Updates(value).Error
 }
 func (m MySQLDao) UpdateColumns(model interface{}, value interface{}) error {
 	return m.db.Where(model).Updates(value).Error
@@ -175,8 +192,21 @@ func (m MySQLDao) UpdateColumns(model interface{}, value interface{}) error {
 func (m MySQLDao) UpdateWithQuery(model interface{}, value interface{}, fields []string, query interface{}, args ...interface{}) error {
 	return m.db.Model(model).Where(query, args...).Select(fields).Updates(value).Error
 }
-func (m MySQLDao) UpdateSelectColumns(ctx context.Context, where interface{}, value interface{}, selectCol ...string) error {
-	return m.db.WithContext(ctx).Where(where).Select(selectCol).Updates(value).Error
+func (m MySQLDao) UpdateSelectColumns(ctx context.Context, where interface{}, value interface{}, tx *gorm.DB, selectCol ...string) error {
+	var result *gorm.DB
+	if tx != nil {
+		result = tx.WithContext(ctx).Where(where).Select(selectCol).Updates(value)
+
+	} else {
+		result = m.db.WithContext(ctx).Where(where).Select(selectCol).Updates(value)
+	}
+	if result.Error!=nil{
+		return fmt.Errorf("update failed:%w",result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("no rows affected,query condition not found record")
+	}
+	return nil
 }
 func (m MySQLDao) Pagination(ctx context.Context, model interface{}, pagination *Pagination) error {
 	base := m.db.WithContext(ctx)
@@ -185,7 +215,10 @@ func (m MySQLDao) Pagination(ctx context.Context, model interface{}, pagination 
 	}
 	return base.Where(pagination.Query, pagination.Args...).Limit(int(pagination.PageSize)).Offset(int(pagination.PageSize * (pagination.Page - 1))).Find(model).Error
 }
-func (m MySQLDao) Delete(model interface{}, conds ...interface{}) error {
+func (m MySQLDao) Delete(model interface{}, tx *gorm.DB, conds ...interface{}) error {
+	if tx != nil {
+		return tx.Delete(model, conds...).Error
+	}
 	return m.db.Delete(model, conds...).Error
 }
 func (m MySQLDao) BatchUpdates(models []interface{}, selectCol ...string) error {

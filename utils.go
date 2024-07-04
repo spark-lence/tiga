@@ -14,6 +14,10 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"unicode"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func GetNowDatetime() string {
@@ -216,4 +220,40 @@ func IntToBytes(number int) ([]byte, error) {
 		return nil, fmt.Errorf("binary.Write failed:%w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+func ToLowerCamel(s string) string {
+	// 将字符串分割为单词
+	caser := cases.Title(language.Und)
+
+	parts := splitToWords(s)
+	for i := range parts {
+		if i == 0 {
+			parts[i] = strings.ToLower(parts[i])
+		} else {
+			parts[i] = caser.String(strings.ToLower(parts[i]))
+		}
+	}
+	// 合并单词
+	return strings.Join(parts, "")
+}
+
+// splitToWords 将字符串分割为单词
+func splitToWords(s string) []string {
+	var words []string
+	var currentWord []rune
+
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			currentWord = append(currentWord, r)
+		} else if len(currentWord) > 0 {
+			words = append(words, string(currentWord))
+			currentWord = nil
+		}
+	}
+	if len(currentWord) > 0 {
+		words = append(words, string(currentWord))
+	}
+
+	return words
 }
