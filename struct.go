@@ -14,7 +14,66 @@ func StructToJsonStr(src interface{}) (string, error) {
 	return string(bytes), nil
 
 }
+func DeepCopy(src interface{}) interface{} {
+	if src == nil {
+		return nil
+	}
 
+	srcVal := reflect.ValueOf(src)
+	return deepCopyReflect(srcVal).Interface()
+}
+
+func deepCopyReflect(srcVal reflect.Value) reflect.Value {
+	switch srcVal.Kind() {
+	case reflect.Ptr:
+		if srcVal.IsNil() {
+			return reflect.Zero(srcVal.Type())
+		}
+		dstVal := reflect.New(srcVal.Elem().Type())
+		dstVal.Elem().Set(deepCopyReflect(srcVal.Elem()))
+		return dstVal
+
+	case reflect.Interface:
+		if srcVal.IsNil() {
+			return reflect.Zero(srcVal.Type())
+		}
+		dstVal := deepCopyReflect(srcVal.Elem())
+		return dstVal.Convert(srcVal.Type())
+
+	case reflect.Struct:
+		dstVal := reflect.New(srcVal.Type()).Elem()
+		for i := 0; i < srcVal.NumField(); i++ {
+			fieldVal := srcVal.Field(i)
+			if fieldVal.CanSet() {
+				dstVal.Field(i).Set(deepCopyReflect(fieldVal))
+			}
+		}
+		return dstVal
+
+	case reflect.Slice:
+		if srcVal.IsNil() {
+			return reflect.Zero(srcVal.Type())
+		}
+		dstVal := reflect.MakeSlice(srcVal.Type(), srcVal.Len(), srcVal.Cap())
+		for i := 0; i < srcVal.Len(); i++ {
+			dstVal.Index(i).Set(deepCopyReflect(srcVal.Index(i)))
+		}
+		return dstVal
+
+	case reflect.Map:
+		if srcVal.IsNil() {
+			return reflect.Zero(srcVal.Type())
+		}
+		dstVal := reflect.MakeMapWithSize(srcVal.Type(), srcVal.Len())
+		for _, key := range srcVal.MapKeys() {
+			dstVal.SetMapIndex(deepCopyReflect(key), deepCopyReflect(srcVal.MapIndex(key)))
+		}
+		return dstVal
+
+	default:
+		return srcVal
+	}
+}
 func StructToMap(src interface{}) (map[string]interface{}, error) {
 	bytes, err := json.Marshal(src)
 	if err != nil {
@@ -110,21 +169,21 @@ func GetFirstElement(models interface{}) (interface{}, error) {
 }
 
 func GetArrayOrSlice(arr interface{}) []interface{} {
-    // 获取反射值对象
-    val := reflect.ValueOf(arr)
-	dst:=make([]interface{}, 0)
-    // 确认val是数组或切片
-    if val.Kind() != reflect.Array && val.Kind() != reflect.Slice {
-        return nil
-    }
+	// 获取反射值对象
+	val := reflect.ValueOf(arr)
+	dst := make([]interface{}, 0)
+	// 确认val是数组或切片
+	if val.Kind() != reflect.Array && val.Kind() != reflect.Slice {
+		return nil
+	}
 
-    // 遍历数组或切片的元素
-    for i := 0; i < val.Len(); i++ {
-        // 获取元素的反射值
-        element := val.Index(i)
+	// 遍历数组或切片的元素
+	for i := 0; i < val.Len(); i++ {
+		// 获取元素的反射值
+		element := val.Index(i)
 
-        // 使用Interface()来获取元素的实际值
-        dst = append(dst, element.Interface())
-    }
+		// 使用Interface()来获取元素的实际值
+		dst = append(dst, element.Interface())
+	}
 	return dst
 }
