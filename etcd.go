@@ -22,6 +22,7 @@ func NewEtcdDao(config *Configuration) *EtcdDao {
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: timeout,
+		DialKeepAliveTimeout: timeout,
 	})
 	if err != nil {
 		panic(err)
